@@ -33,6 +33,12 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
+
+        <!-- Канал по умолчанию для push-уведомлений (создаётся в MainActivity) —
+             подстраховка на случай, если сообщение придёт без явного channel_id. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="chat_messages" />
     </application>
 
     <!-- Permissions -->

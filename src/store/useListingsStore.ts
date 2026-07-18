@@ -1,21 +1,27 @@
 import { create } from "zustand";
 import { supabase } from "@/lib/supabase";
-import type { Category, CategorySlug, ListingWithOwner } from "@/types";
+import type { Category, CategorySlug, ListingWithOwner, Subcategory } from "@/types";
+
+const LISTING_SELECT =
+  "*, owner:profiles!listings_owner_id_fkey(id,display_name,avatar_url,rating), category:categories!listings_category_id_fkey(slug,title,icon), subcategory:subcategories!listings_subcategory_id_fkey(slug,title)";
 
 interface Filters {
   categorySlug: CategorySlug | "all";
+  subcategoryId: string | "all";
   query: string;
   district: string | "all";
 }
 
 interface ListingsState {
   categories: Category[];
+  subcategories: Subcategory[];
   listings: ListingWithOwner[];
   favoriteIds: Set<string>;
   favoriteListings: ListingWithOwner[];
   filters: Filters;
   isLoading: boolean;
   loadCategories: () => Promise<void>;
+  loadSubcategories: () => Promise<void>;
   loadFeed: () => Promise<void>;
   setFilters: (partial: Partial<Filters>) => void;
   toggleFavorite: (listingId: string, userId: string) => Promise<void>;
@@ -28,10 +34,11 @@ interface ListingsState {
 
 export const useListingsStore = create<ListingsState>((set, get) => ({
   categories: [],
+  subcategories: [],
   listings: [],
   favoriteIds: new Set(),
   favoriteListings: [],
-  filters: { categorySlug: "all", query: "", district: "all" },
+  filters: { categorySlug: "all", subcategoryId: "all", query: "", district: "all" },
   isLoading: false,
 
   loadCategories: async () => {
@@ -39,15 +46,20 @@ export const useListingsStore = create<ListingsState>((set, get) => ({
     if (data) set({ categories: data as Category[] });
   },
 
+  loadSubcategories: async () => {
+    // Таблица маленькая (десятки строк) — проще и быстрее загрузить всю сразу
+    // и фильтровать по category_id на клиенте, чем гонять отдельный запрос на каждую категорию.
+    const { data } = await supabase.from("subcategories").select("*").order("title");
+    if (data) set({ subcategories: data as Subcategory[] });
+  },
+
   loadFeed: async () => {
     set({ isLoading: true });
-    const { categorySlug, query, district } = get().filters;
+    const { categorySlug, subcategoryId, query, district } = get().filters;
 
     let request = supabase
       .from("listings")
-      .select(
-        "*, owner:profiles!listings_owner_id_fkey(id,display_name,avatar_url,rating), category:categories!listings_category_id_fkey(slug,title,icon)"
-      )
+      .select(LISTING_SELECT)
       .eq("status", "active")
       .order("created_at", { ascending: false });
 
@@ -55,6 +67,7 @@ export const useListingsStore = create<ListingsState>((set, get) => ({
       const cat = get().categories.find((c) => c.slug === categorySlug);
       if (cat) request = request.eq("category_id", cat.id);
     }
+    if (subcategoryId !== "all") request = request.eq("subcategory_id", subcategoryId);
     if (district !== "all") request = request.eq("district", district);
     if (query.trim()) request = request.ilike("title", `%${query.trim()}%`);
 
@@ -64,7 +77,15 @@ export const useListingsStore = create<ListingsState>((set, get) => ({
   },
 
   setFilters: (partial) => {
-    set((state) => ({ filters: { ...state.filters, ...partial } }));
+    set((state) => {
+      const nextFilters = { ...state.filters, ...partial };
+      // Подкатегория привязана к конкретной категории — при смене категории
+      // сбрасываем выбранную подкатегорию, чтобы не остался "чужой" фильтр.
+      if (partial.categorySlug !== undefined && partial.subcategoryId === undefined) {
+        nextFilters.subcategoryId = "all";
+      }
+      return { filters: nextFilters };
+    });
     get().loadFeed();
   },
 
@@ -96,9 +117,7 @@ export const useListingsStore = create<ListingsState>((set, get) => ({
     set({ isLoading: true });
     const { data } = await supabase
       .from("favorites")
-      .select(
-        "listing:listings!favorites_listing_id_fkey(*, owner:profiles!listings_owner_id_fkey(id,display_name,avatar_url,rating), category:categories!listings_category_id_fkey(slug,title,icon))"
-      )
+      .select(`listing:listings!favorites_listing_id_fkey(${LISTING_SELECT})`)
       .eq("user_id", userId)
       .order("created_at", { ascending: false });
 

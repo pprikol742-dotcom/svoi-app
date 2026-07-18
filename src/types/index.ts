@@ -3,13 +3,22 @@ export type CategorySlug =
   | "realty"
   | "electronics"
   | "home"
-  | "services";
+  | "services"
+  | "animals"
+  | "jobs";
 
 export interface Category {
   id: string;
   slug: CategorySlug;
   title: string;
   icon: string;
+}
+
+export interface Subcategory {
+  id: string;
+  category_id: string;
+  slug: string;
+  title: string;
 }
 
 export interface Profile {
@@ -29,6 +38,7 @@ export interface Listing {
   id: string;
   owner_id: string;
   category_id: string;
+  subcategory_id: string | null;
   title: string;
   description: string;
   price: number | null;
@@ -46,6 +56,7 @@ export interface Listing {
 export interface ListingWithOwner extends Listing {
   owner: Pick<Profile, "id" | "display_name" | "avatar_url" | "rating">;
   category: Pick<Category, "slug" | "title" | "icon">;
+  subcategory: Pick<Subcategory, "slug" | "title"> | null;
 }
 
 export interface Chat {

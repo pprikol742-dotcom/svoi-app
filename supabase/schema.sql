@@ -56,7 +56,9 @@ insert into categories (slug, title, icon) values
   ('realty', 'Недвижимость', 'home'),
   ('electronics', 'Электроника', 'smartphone'),
   ('home', 'Дом и сад', 'sofa'),
-  ('services', 'Услуги', 'wrench')
+  ('services', 'Услуги', 'wrench'),
+  ('animals', 'Животные', 'paw'),
+  ('jobs', 'Работа', 'briefcase')
 on conflict (slug) do nothing;
 
 -- ---------- LISTINGS ----------
@@ -240,3 +242,21 @@ select cron.schedule(
       and created_at <= now() - interval '1 month'
   $$
 );
+
+-- ---------- ПОДКАТЕГОРИИ (см. подробности и наполнение в migration_005_subcategories.sql) ----------
+create table if not exists subcategories (
+  id uuid primary key default gen_random_uuid(),
+  category_id uuid not null references categories(id) on delete cascade,
+  slug text not null,
+  title text not null,
+  unique (category_id, slug)
+);
+
+create index if not exists idx_subcategories_category on subcategories(category_id);
+alter table subcategories enable row level security;
+
+drop policy if exists "subcategories_select_all" on subcategories;
+create policy "subcategories_select_all" on subcategories for select using (true);
+
+alter table listings add column if not exists subcategory_id uuid references subcategories(id);
+create index if not exists idx_listings_subcategory on listings(subcategory_id);

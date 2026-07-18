@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase, PHOTOS_BUCKET } from "@/lib/supabase";
+import { resizeImage } from "@/lib/imageResize";
+import { safeId } from "@/lib/id";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useListingsStore } from "@/store/useListingsStore";
 import { TopBar } from "@/components/TopBar";
+import { CategoryPickerModal } from "@/components/CategoryPickerModal";
 
 const DISTRICTS = ["Артёмовский", "Ленинский", "Каменнобродский", "Жовтневый"];
 
@@ -12,13 +15,14 @@ export function CreateListingScreen() {
   const { id: editId } = useParams();
   const isEditMode = Boolean(editId);
   const { userId, profile } = useAuthStore();
-  const { categories, loadCategories, updateListing } = useListingsStore();
+  const { categories, subcategories, loadCategories, loadSubcategories, updateListing } = useListingsStore();
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState("");
   const [isFree, setIsFree] = useState(false);
   const [categoryId, setCategoryId] = useState("");
+  const [subcategoryId, setSubcategoryId] = useState("");
   const [district, setDistrict] = useState(DISTRICTS[0]);
   const [phone, setPhone] = useState("");
   const [existingPhotos, setExistingPhotos] = useState<string[]>([]);
@@ -26,9 +30,11 @@ export function CreateListingScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [loadingExisting, setLoadingExisting] = useState(isEditMode);
   const [error, setError] = useState<string | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   useEffect(() => {
     loadCategories();
+    loadSubcategories();
   }, []);
 
   useEffect(() => {
@@ -54,6 +60,7 @@ export function CreateListingScreen() {
         setPrice(data.price ? String(data.price) : "");
         setIsFree(data.is_free);
         setCategoryId(data.category_id);
+        setSubcategoryId(data.subcategory_id ?? "");
         setDistrict(data.district);
         setPhone(data.contact_phone ?? "");
         setExistingPhotos(data.photos ?? []);
@@ -63,6 +70,12 @@ export function CreateListingScreen() {
 
   const digitsOnly = phone.replace(/\D/g, "");
   const totalPhotoCount = existingPhotos.length + files.length;
+  const visibleSubcategories = subcategories.filter((s) => s.category_id === categoryId);
+  const selectedCategory = categories.find((c) => c.id === categoryId) ?? null;
+  const selectedSubcategory = subcategories.find((s) => s.id === subcategoryId) ?? null;
+  const categoryFieldLabel = selectedSubcategory
+    ? `${selectedCategory?.title ?? ""} · ${selectedSubcategory.title}`
+    : selectedCategory?.title ?? "Выберите категорию";
 
   const handleFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
     const picked = Array.from(e.target.files ?? []).slice(0, 6 - totalPhotoCount);
@@ -77,6 +90,7 @@ export function CreateListingScreen() {
     if (!userId) return navigate("/auth");
     if (title.trim().length < 3) return setError("Название слишком короткое");
     if (!categoryId) return setError("Выберите категорию");
+    if (visibleSubcategories.length > 0 && !subcategoryId) return setError("Выберите подкатегорию");
     if (digitsOnly.length < 10) return setError("Введите номер телефона для связи с покупателями");
 
     setSubmitting(true);
@@ -84,8 +98,9 @@ export function CreateListingScreen() {
     try {
       const newPhotoUrls: string[] = [];
       for (const file of files) {
-        const path = `${userId}/${crypto.randomUUID()}-${file.name}`;
-        const { error: uploadError } = await supabase.storage.from(PHOTOS_BUCKET).upload(path, file);
+        const compressed = await resizeImage(file);
+        const path = `${userId}/${safeId()}-${compressed.name}`;
+        const { error: uploadError } = await supabase.storage.from(PHOTOS_BUCKET).upload(path, compressed);
         if (uploadError) throw uploadError;
         const { data } = supabase.storage.from(PHOTOS_BUCKET).getPublicUrl(path);
         newPhotoUrls.push(data.publicUrl);
@@ -95,6 +110,7 @@ export function CreateListingScreen() {
       if (isEditMode && editId) {
         const { error: updateError } = await updateListing(editId, {
           category_id: categoryId,
+          subcategory_id: subcategoryId || null,
           title: title.trim(),
           description: description.trim(),
           price: isFree ? null : price ? Number(price) : null,
@@ -109,6 +125,7 @@ export function CreateListingScreen() {
         const { error: insertError } = await supabase.from("listings").insert({
           owner_id: userId,
           category_id: categoryId,
+          subcategory_id: subcategoryId || null,
           title: title.trim(),
           description: description.trim(),
           price: isFree ? null : price ? Number(price) : null,
@@ -171,17 +188,23 @@ export function CreateListingScreen() {
         <input className="field-input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Например, детская коляска" />
 
         <label className="field-label" style={{ marginTop: "var(--space-4)" }}>Категория</label>
-        <div className="cat-grid">
-          {categories.map((c) => (
-            <button
-              key={c.id}
-              className={`cat-btn${categoryId === c.id ? " is-active" : ""}`}
-              onClick={() => setCategoryId(c.id)}
-            >
-              {c.title}
-            </button>
-          ))}
-        </div>
+        <button type="button" className="field-select" onClick={() => setPickerOpen(true)}>
+          <span className={selectedCategory ? "" : "field-select__placeholder"}>{categoryFieldLabel}</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </button>
+
+        <CategoryPickerModal
+          isOpen={pickerOpen}
+          onClose={() => setPickerOpen(false)}
+          categories={categories}
+          subcategories={subcategories}
+          selectedCategoryId={categoryId || null}
+          selectedSubcategoryId={subcategoryId || null}
+          onSelectCategory={(c) => setCategoryId(c?.id ?? "")}
+          onSelectSubcategory={(s) => setSubcategoryId(s?.id ?? "")}
+        />
 
         <label className="field-label" style={{ marginTop: "var(--space-4)" }}>Описание</label>
         <textarea
@@ -266,6 +289,23 @@ export function CreateListingScreen() {
           font-weight: 600;
         }
         .photo-add svg { width: 20px; height: 20px; }
+        .field-select {
+          width: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: var(--space-2);
+          padding: 12px 14px;
+          border-radius: var(--radius-md);
+          border: 1.5px solid var(--color-border);
+          background: var(--color-surface);
+          font-size: 14.5px;
+          font-weight: 600;
+          color: var(--color-text-primary);
+          text-align: left;
+        }
+        .field-select svg { width: 18px; height: 18px; flex-shrink: 0; color: var(--color-text-secondary); }
+        .field-select__placeholder { color: var(--color-text-secondary); font-weight: 500; }
         .cat-grid { display: flex; flex-wrap: wrap; gap: var(--space-2); }
         .cat-btn {
           padding: 9px 14px;

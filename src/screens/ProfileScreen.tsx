@@ -62,7 +62,13 @@ export function ProfileScreen() {
   return (
     <div className="screen">
       <div className="profile-header">
-        <div className="profile-avatar">{profile?.display_name?.[0] ?? "С"}</div>
+        <div className="profile-avatar">
+          {profile?.avatar_url ? (
+            <img src={profile.avatar_url} alt="" />
+          ) : (
+            profile?.display_name?.[0] ?? "С"
+          )}
+        </div>
         <h2>{profile?.display_name ?? "Пользователь"}</h2>
         <p className="profile-district">{profile?.district ?? "Луганск"}</p>
         <button className="edit-link" onClick={() => navigate("/profile/edit")}>
@@ -134,7 +140,9 @@ export function ProfileScreen() {
           display: flex; align-items: center; justify-content: center;
           font-family: var(--font-display); font-weight: 800; font-size: 26px;
           margin-bottom: var(--space-2);
+          overflow: hidden;
         }
+        .profile-avatar img { width: 100%; height: 100%; object-fit: cover; }
         .profile-district { color: var(--color-text-secondary); font-size: 13px; margin-top: 2px; }
         .edit-link {
           margin-top: var(--space-3);

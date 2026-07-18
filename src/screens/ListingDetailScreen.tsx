@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -22,21 +22,54 @@ export function ListingDetailScreen() {
   const { deleteListing, republishListing } = useListingsStore();
   const [listing, setListing] = useState<ListingWithOwner | null>(null);
   const [activePhoto, setActivePhoto] = useState(0);
+  const [loadedPhotos, setLoadedPhotos] = useState<Set<number>>(new Set());
   const [contacting, setContacting] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [busy, setBusy] = useState(false);
+  const touchStartX = useRef<number | null>(null);
+  const touchDeltaX = useRef(0);
+  const justSwiped = useRef(false);
 
   useEffect(() => {
     if (!id) return;
     supabase
       .from("listings")
       .select(
-        "*, owner:profiles!listings_owner_id_fkey(id,display_name,avatar_url,rating), category:categories!listings_category_id_fkey(slug,title,icon)"
+        "*, owner:profiles!listings_owner_id_fkey(id,display_name,avatar_url,rating), category:categories!listings_category_id_fkey(slug,title,icon), subcategory:subcategories!listings_subcategory_id_fkey(slug,title)"
       )
       .eq("id", id)
       .single()
       .then(({ data }) => data && setListing(data as unknown as ListingWithOwner));
   }, [id]);
+
+  const photoCount = listing?.photos.length ?? 0;
+
+  const goToPhoto = (index: number) => {
+    if (photoCount === 0) return;
+    setActivePhoto((index + photoCount) % photoCount);
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+    touchDeltaX.current = 0;
+  };
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (touchStartX.current == null) return;
+    touchDeltaX.current = e.touches[0].clientX - touchStartX.current;
+  };
+  const handleTouchEnd = () => {
+    const delta = touchDeltaX.current;
+    touchStartX.current = null;
+    touchDeltaX.current = 0;
+    const SWIPE_THRESHOLD = 40;
+    if (delta > SWIPE_THRESHOLD) {
+      justSwiped.current = true;
+      goToPhoto(activePhoto - 1);
+    } else if (delta < -SWIPE_THRESHOLD) {
+      justSwiped.current = true;
+      goToPhoto(activePhoto + 1);
+    }
+  };
 
   if (!listing) {
     return (
@@ -79,20 +112,78 @@ export function ListingDetailScreen() {
 
   return (
     <div className="screen screen--no-tab-padding">
-      <TopBar title={listing.category?.title ?? "Объявление"} onBack />
+      <TopBar title={listing.subcategory?.title ?? listing.category?.title ?? "Объявление"} onBack />
 
-      <div className="gallery">
-        {listing.photos.length > 0 ? (
-          <img src={listing.photos[activePhoto]} alt={listing.title} />
+      <div
+        className="gallery"
+        style={{ touchAction: "pan-y" }}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={() => {
+          touchStartX.current = null;
+          touchDeltaX.current = 0;
+        }}
+      >
+        {photoCount > 0 ? (
+          <div
+            className="gallery__track"
+            style={{ transform: `translateX(-${activePhoto * 100}%)` }}
+            onClick={(e) => {
+              if (justSwiped.current) {
+                justSwiped.current = false;
+                return;
+              }
+              if (photoCount < 2) return;
+              const rect = e.currentTarget.getBoundingClientRect();
+              const tapX = e.clientX - rect.left;
+              if (tapX < rect.width * 0.35) goToPhoto(activePhoto - 1);
+              else if (tapX > rect.width * 0.65) goToPhoto(activePhoto + 1);
+            }}
+          >
+            {listing.photos.map((url, i) => (
+              <img
+                key={url + i}
+                src={url}
+                alt={listing.title}
+                draggable={false}
+                loading={i === 0 ? "eager" : "lazy"}
+                className={loadedPhotos.has(i) ? "is-loaded" : ""}
+                onLoad={() => setLoadedPhotos((prev) => new Set(prev).add(i))}
+              />
+            ))}
+          </div>
         ) : (
           <div className="gallery__placeholder">Без фото</div>
         )}
-        {listing.photos.length > 1 && (
-          <div className="gallery__dots">
-            {listing.photos.map((_, i) => (
-              <span key={i} className={`dot${i === activePhoto ? " is-active" : ""}`} onClick={() => setActivePhoto(i)} />
-            ))}
-          </div>
+
+        {photoCount > 1 && (
+          <>
+            <button
+              className="gallery__arrow gallery__arrow--left"
+              onClick={() => goToPhoto(activePhoto - 1)}
+              aria-label="Предыдущее фото"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="m15 18-6-6 6-6" />
+              </svg>
+            </button>
+            <button
+              className="gallery__arrow gallery__arrow--right"
+              onClick={() => goToPhoto(activePhoto + 1)}
+              aria-label="Следующее фото"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="m9 18 6-6-6-6" />
+              </svg>
+            </button>
+            <div className="gallery__counter">{activePhoto + 1} / {photoCount}</div>
+            <div className="gallery__dots">
+              {listing.photos.map((_, i) => (
+                <span key={i} className={`dot${i === activePhoto ? " is-active" : ""}`} onClick={() => goToPhoto(i)} />
+              ))}
+            </div>
+          </>
         )}
       </div>
 
@@ -171,12 +262,60 @@ export function ListingDetailScreen() {
           position: relative;
           aspect-ratio: 1 / 1;
           background: var(--color-accent-soft);
+          overflow: hidden;
+          touch-action: pan-y;
         }
-        .gallery img { width: 100%; height: 100%; object-fit: cover; }
+        .gallery__track {
+          display: flex;
+          width: 100%;
+          height: 100%;
+          transition: transform 0.25s ease;
+          touch-action: pan-y;
+        }
+        .gallery__track img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          flex: 0 0 100%;
+          user-select: none;
+          -webkit-user-drag: none;
+          opacity: 0;
+          transition: opacity 0.3s ease;
+          background: var(--color-accent-soft);
+        }
+        .gallery__track img.is-loaded {
+          opacity: 1;
+        }
         .gallery__placeholder {
           width: 100%; height: 100%;
           display: flex; align-items: center; justify-content: center;
           color: var(--color-text-secondary);
+        }
+        .gallery__arrow {
+          position: absolute;
+          top: 50%;
+          transform: translateY(-50%);
+          width: 34px; height: 34px;
+          border-radius: 50%;
+          background: rgba(23, 21, 34, 0.45);
+          backdrop-filter: blur(4px);
+          color: #fff;
+          display: flex; align-items: center; justify-content: center;
+        }
+        .gallery__arrow svg { width: 20px; height: 20px; }
+        .gallery__arrow--left { left: var(--space-3); }
+        .gallery__arrow--right { right: var(--space-3); }
+        .gallery__counter {
+          position: absolute;
+          top: var(--space-3);
+          right: var(--space-3);
+          background: rgba(23, 21, 34, 0.45);
+          backdrop-filter: blur(4px);
+          color: #fff;
+          font-size: 12px;
+          font-weight: 600;
+          padding: 4px 10px;
+          border-radius: var(--radius-pill);
         }
         .gallery__dots {
           position: absolute;
@@ -186,7 +325,7 @@ export function ListingDetailScreen() {
           justify-content: center;
           gap: 6px;
         }
-        .dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,0.6); }
+        .dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,0.6); transition: all 0.15s ease; }
         .dot.is-active { background: #fff; width: 18px; border-radius: 3px; }
         .detail-body { padding: var(--space-4); padding-bottom: 100px; }
         .detail-price { font-size: 26px; margin-bottom: var(--space-1); }

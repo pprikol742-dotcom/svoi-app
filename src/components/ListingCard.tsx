@@ -42,7 +42,7 @@ export function ListingCard({ listing, isFavorite, onToggleFavorite }: ListingCa
       </div>
       <div className="listing-card__body">
         <p className="listing-card__title">{listing.title}</p>
-        <p className="listing-card__meta">{listing.district}</p>
+        <p className="listing-card__meta">{listing.district} · {listing.subcategory?.title ?? listing.category?.title}</p>
       </div>
 
       <style>{`

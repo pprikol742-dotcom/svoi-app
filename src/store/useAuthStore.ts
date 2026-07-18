@@ -12,7 +12,7 @@ interface AuthState {
   signInWithEmail: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
-  updateProfile: (fields: Partial<Pick<Profile, "display_name" | "phone" | "district">>) => Promise<{ error: string | null }>;
+  updateProfile: (fields: Partial<Pick<Profile, "display_name" | "phone" | "district" | "avatar_url">>) => Promise<{ error: string | null }>;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({

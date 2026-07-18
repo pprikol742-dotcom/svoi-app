@@ -1,16 +1,33 @@
+# Node / зависимости
 node_modules/
+npm-debug.log*
+
+# Сборка
 dist/
+dist-ssr/
+*.local
+*.tsbuildinfo
+
+# Секреты — не должны попадать в git, CI подставляет их сам из GitHub Secrets
 .env
 .env.local
-*.jks
-*.keystore
+android/app/keystore.properties
+
+# Android build-артефакты
 android/app/build/
-android/app/release/
 android/build/
 android/.gradle/
 android/.idea/
 android/local.properties
-android/captures/
-android/**/build/
+android/app/release/
+*.apk
+*.aab
+
+# Ключи подписи
+*.jks
+*.keystore
+
+# OS / редакторы
 .DS_Store
-*.log
+Thumbs.db
+.vscode/
