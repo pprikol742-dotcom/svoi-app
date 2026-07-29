@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "465475676777",
+    "project_id": "ru-svoi-lugansk",
+    "storage_bucket": "ru-svoi-lugansk.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:465475676777:android:cc244ae065d98e4a5f50f8",
+        "android_client_info": {
+          "package_name": "ru.svoi.lugansk"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB8fBzhh5tkgJLyXtz2D5jv4dsNEGJzHlM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

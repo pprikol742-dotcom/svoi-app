@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Свои</string>
+    <string name="title_activity_main">Свои</string>
+    <string name="package_name">ru.svoi.lugansk</string>
+    <string name="custom_url_scheme">ru.svoi.lugansk</string>
+</resources>
