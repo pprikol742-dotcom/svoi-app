@@ -21,8 +21,10 @@ import com.yandex.mobile.ads.common.ImpressionData;
 
 public class MainActivity extends BridgeActivity {
     // TODO: перед публикацией в сторе замените демо-ID на настоящий adUnitId
-    // из личного кабинета Яндекс.Рекламной сети (partner.yandex.ru)
+    // из личного кабинета Яндекс.Рекламной сети (partner.yandex.ru), затем
+    // верните SHOW_AD_BANNER в true.
     private static final String AD_UNIT_ID = "demo-banner-yandex";
+    private static final boolean SHOW_AD_BANNER = false;
 
     private BannerAdView bannerAdView;
 
@@ -31,6 +33,11 @@ public class MainActivity extends BridgeActivity {
         super.onCreate(savedInstanceState);
 
         createChatNotificationChannel();
+
+        if (!SHOW_AD_BANNER) {
+            // Без баннера — обычный запуск Capacitor, WebView во весь экран.
+            return;
+        }
 
         // Достаём WebView, который уже создал Capacitor
         ViewGroup webView = getBridge().getWebView();

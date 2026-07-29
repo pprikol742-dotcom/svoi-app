@@ -13,10 +13,11 @@ import { FavoritesScreen } from "@/screens/FavoritesScreen";
 import { AuthScreen } from "@/screens/AuthScreen";
 import { ListingDetailScreen } from "@/screens/ListingDetailScreen";
 import { CreateListingScreen } from "@/screens/CreateListingScreen";
+import { LegalScreen } from "@/screens/LegalScreen";
 
 function Shell() {
   const location = useLocation();
-  const hideNav = ["/listing", "/create", "/auth", "/chats/", "/profile/edit", "/favorites"].some(
+  const hideNav = ["/listing", "/create", "/auth", "/chats/", "/profile/edit", "/favorites", "/legal"].some(
     (p) => location.pathname.startsWith(p) && location.pathname !== "/chats"
   );
 
@@ -34,6 +35,7 @@ function Shell() {
         <Route path="/listing/:id" element={<ListingDetailScreen />} />
         <Route path="/create" element={<CreateListingScreen />} />
         <Route path="/listing/:id/edit" element={<CreateListingScreen />} />
+        <Route path="/legal" element={<LegalScreen />} />
       </Routes>
       {!hideNav && <BottomNav />}
     </div>
