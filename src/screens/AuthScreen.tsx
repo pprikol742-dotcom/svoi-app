@@ -11,6 +11,7 @@ export function AuthScreen() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [displayName, setDisplayName] = useState("");
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -21,6 +22,9 @@ export function AuthScreen() {
     if (!email.includes("@")) return setError("Введите корректный email");
     if (password.length < 6) return setError("Пароль — минимум 6 символов");
     if (mode === "signup" && displayName.trim().length < 2) return setError("Введите имя");
+    if (mode === "signup" && !agreedToTerms) {
+      return setError("Нужно принять условия использования и политику конфиденциальности");
+    }
 
     setLoading(true);
     if (mode === "signup") {
@@ -89,6 +93,22 @@ export function AuthScreen() {
           </button>
         </div>
 
+        {mode === "signup" && (
+          <label className="consent-row">
+            <input
+              type="checkbox"
+              checked={agreedToTerms}
+              onChange={(e) => setAgreedToTerms(e.target.checked)}
+            />
+            <span>
+              Я принимаю{" "}
+              <a href="#/legal" onClick={(e) => { e.preventDefault(); navigate("/legal"); }}>
+                Условия использования, Политику конфиденциальности и Согласие на обработку персональных данных
+              </a>
+            </span>
+          </label>
+        )}
+
         {error && <p className="form-error">{error}</p>}
         {notice && <p className="form-notice">{notice}</p>}
 
@@ -125,6 +145,29 @@ export function AuthScreen() {
         }
         .password-toggle svg { width: 20px; height: 20px; }
         .form-notice { color: var(--color-success); font-size: 13px; margin-top: var(--space-2); line-height: 1.4; }
+        .consent-row {
+          display: flex;
+          align-items: flex-start;
+          gap: 10px;
+          margin-top: var(--space-4);
+          cursor: pointer;
+        }
+        .consent-row input[type="checkbox"] {
+          margin-top: 3px;
+          width: 18px;
+          height: 18px;
+          flex-shrink: 0;
+          accent-color: var(--color-primary);
+        }
+        .consent-row span {
+          font-size: 13px;
+          line-height: 1.5;
+          color: var(--color-text-secondary);
+        }
+        .consent-row a {
+          color: var(--color-primary);
+          font-weight: 600;
+        }
         .auth-switch {
           display: block;
           margin: var(--space-4) auto 0;

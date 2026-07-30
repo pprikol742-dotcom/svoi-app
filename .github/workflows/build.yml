@@ -1,4 +1,4 @@
-﻿name: Build signed APK
+name: Build signed APK
 
 on:
   push:
