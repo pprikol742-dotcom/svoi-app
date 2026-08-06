@@ -66,6 +66,8 @@ export interface Chat {
   seller_id: string;
   created_at: string;
   last_message_at: string | null;
+  buyer_last_read_at: string | null;
+  seller_last_read_at: string | null;
 }
 
 export interface ChatWithParticipants extends Chat {
@@ -81,6 +83,7 @@ export interface Message {
   body: string;
   created_at: string;
   read_at: string | null;
+  edited_at: string | null;
 }
 
 export interface Favorite {

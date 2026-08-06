@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "@/store/useAuthStore";
-import { useChatStore } from "@/store/useChatStore";
+import { useChatStore, isChatUnread } from "@/store/useChatStore";
 
 export function ChatListScreen() {
   const { userId } = useAuthStore();
@@ -30,7 +30,6 @@ export function ChatListScreen() {
       <div className="chats-header">
         <h1>Чаты</h1>
       </div>
-
       {chats.length === 0 ? (
         <div className="empty-state">
           <h3>Пока нет диалогов</h3>
@@ -41,13 +40,17 @@ export function ChatListScreen() {
           {chats.map((chat) => {
             const other = chat.buyer_id === userId ? chat.seller : chat.buyer;
             const cover = chat.listing?.photos?.[0];
+            const unread = isChatUnread(chat, userId);
             return (
               <button key={chat.id} className="chat-row" onClick={() => navigate(`/chats/${chat.id}`)}>
-                <div className="chat-row__avatar">
-                  {cover ? <img src={cover} alt="" /> : (other?.display_name?.[0] ?? "?")}
+                <div className="chat-row__avatar-wrap">
+                  <div className="chat-row__avatar">
+                    {cover ? <img src={cover} alt="" /> : (other?.display_name?.[0] ?? "?")}
+                  </div>
+                  {unread && <span className="unread-dot" aria-label="Непрочитано" />}
                 </div>
                 <div className="chat-row__body">
-                  <p className="chat-row__title">{other?.display_name ?? "Пользователь"}</p>
+                  <p className={`chat-row__title${unread ? " is-unread" : ""}`}>{other?.display_name ?? "Пользователь"}</p>
                   <p className="chat-row__subtitle">{chat.listing?.title ?? "Объявление"}</p>
                   <p className="chat-row__meta">
                     {chat.last_message_at ? new Date(chat.last_message_at).toLocaleString("ru-RU") : "Нет сообщений"}
@@ -58,7 +61,6 @@ export function ChatListScreen() {
           })}
         </div>
       )}
-
       <style>{`
         .chats-header { padding: calc(var(--space-3) + var(--safe-top)) var(--space-4) var(--space-3); }
         .chats-header h1 { font-size: 20px; }
@@ -69,6 +71,10 @@ export function ChatListScreen() {
           border-bottom: 1px solid var(--color-border);
           text-align: left;
         }
+        .chat-row__avatar-wrap {
+          position: relative;
+          flex-shrink: 0;
+        }
         .chat-row__avatar {
           width: 44px; height: 44px; border-radius: 50%;
           background: var(--color-accent-soft);
@@ -77,11 +83,21 @@ export function ChatListScreen() {
           font-size: 18px;
           font-family: var(--font-display);
           font-weight: 700;
-          flex-shrink: 0;
           overflow: hidden;
         }
         .chat-row__avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .unread-dot {
+          position: absolute;
+          top: -1px;
+          right: -1px;
+          width: 12px;
+          height: 12px;
+          border-radius: 50%;
+          background: #e5484d;
+          border: 2px solid var(--color-bg);
+        }
         .chat-row__title { font-size: 14.5px; font-weight: 600; }
+        .chat-row__title.is-unread { font-weight: 800; }
         .chat-row__subtitle { font-size: 12.5px; color: var(--color-text-secondary); margin-top: 1px; }
         .chat-row__meta { font-size: 11.5px; color: var(--color-text-secondary); margin-top: 2px; opacity: 0.8; }
       `}</style>
