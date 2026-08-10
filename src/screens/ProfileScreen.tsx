@@ -6,6 +6,88 @@ import { useThemeStore } from "@/store/useThemeStore";
 import { useListingsStore } from "@/store/useListingsStore";
 import type { Listing } from "@/types";
 
+// Подписи и ссылки на партнёрские предложения — меняй здесь, в одном месте.
+const TOOLS = [
+  {
+    title: "Подарок 500",
+    url: "https://vk.ru/away.php?to=https%3A%2F%2Ftbank.ru%2Fbaf%2F70dKHo5Vgnl&utf=1",
+  },
+  {
+    title: "Лимит до 1 миллиона",
+    url: "https://vk.ru/away.php?to=https%3A%2F%2Ftbank.ru%2Fbaf%2F2JQMqTOuPEi&utf=1",
+  },
+  {
+    title: "Т-Мобайл",
+    url: "https://vk.ru/away.php?to=https%3A%2F%2Ftbank.ru%2Fbaf%2FGatyuPMEwP&utf=1",
+  },
+];
+
+function ToolsPage({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="tools-page">
+      <div className="tools-page__header">
+        <button className="tools-page__back" onClick={onClose} aria-label="Назад">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="m15 18-6-6 6-6" />
+          </svg>
+        </button>
+        <h1>Полезные инструменты</h1>
+      </div>
+      <div className="tools-page__list">
+        {TOOLS.map((tool) => (
+          <a key={tool.url} className="tools-page__btn" href={tool.url} target="_blank" rel="noopener noreferrer">
+            {tool.title}
+          </a>
+        ))}
+      </div>
+      <style>{`
+        .tools-page {
+          position: fixed;
+          inset: 0;
+          z-index: 100;
+          background: var(--color-bg);
+          display: flex;
+          flex-direction: column;
+        }
+        .tools-page__header {
+          display: flex;
+          align-items: center;
+          gap: var(--space-3);
+          padding: calc(var(--space-3) + var(--safe-top)) var(--space-4) var(--space-3);
+          border-bottom: 1px solid var(--color-border);
+        }
+        .tools-page__back {
+          width: 36px; height: 36px;
+          display: flex; align-items: center; justify-content: center;
+          flex-shrink: 0;
+          color: var(--color-text-primary);
+        }
+        .tools-page__back svg { width: 22px; height: 22px; }
+        .tools-page__header h1 { font-size: 18px; font-weight: 700; }
+        .tools-page__list {
+          display: flex;
+          flex-direction: column;
+          gap: var(--space-3);
+          padding: var(--space-5) var(--space-4);
+        }
+        .tools-page__btn {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: var(--space-4);
+          background: var(--color-accent);
+          color: var(--color-text-onaccent);
+          border-radius: var(--radius-md);
+          box-shadow: var(--shadow-card);
+          font-size: 15.5px;
+          font-weight: 700;
+          text-align: center;
+        }
+      `}</style>
+    </div>
+  );
+}
+
 export function ProfileScreen() {
   const { userId, profile, signOut } = useAuthStore();
   const { theme, toggleTheme } = useThemeStore();
@@ -13,6 +95,7 @@ export function ProfileScreen() {
   const navigate = useNavigate();
   const [myListings, setMyListings] = useState<Listing[]>([]);
   const [republishingId, setRepublishingId] = useState<string | null>(null);
+  const [showTools, setShowTools] = useState(false);
 
   useEffect(() => {
     if (!userId) return;
@@ -61,6 +144,8 @@ export function ProfileScreen() {
 
   return (
     <div className="screen">
+      {showTools && <ToolsPage onClose={() => setShowTools(false)} />}
+
       <div className="profile-header">
         <div className="profile-avatar">
           {profile?.avatar_url ? (
@@ -86,6 +171,13 @@ export function ProfileScreen() {
           <span className="switch__knob" />
         </button>
       </div>
+
+      <button className="tools-toggle" onClick={() => setShowTools(true)}>
+        <span>Полезные инструменты — рекомендации</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="m9 6 6 6-6 6" />
+        </svg>
+      </button>
 
       <button className="settings-row settings-row--link" onClick={() => navigate("/favorites")}>
         <span>Избранное</span>
@@ -197,6 +289,22 @@ export function ProfileScreen() {
           transition: transform 0.15s ease;
         }
         .switch.is-on .switch__knob { transform: translateX(18px); }
+        .tools-toggle {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          width: calc(100% - var(--space-4) * 2);
+          margin: 0 var(--space-4) var(--space-5);
+          padding: var(--space-3);
+          background: var(--color-accent);
+          color: var(--color-text-onaccent);
+          border-radius: var(--radius-md);
+          box-shadow: var(--shadow-card);
+          font-size: 14.5px;
+          font-weight: 700;
+          text-align: left;
+        }
+        .tools-toggle svg { width: 18px; height: 18px; flex-shrink: 0; margin-left: var(--space-2); }
         .section-title { padding: 0 var(--space-4); font-size: 14px; margin-bottom: var(--space-2); }
         .my-listings { display: flex; flex-direction: column; padding: 0 var(--space-4); gap: var(--space-2); }
         .my-listing-row {
