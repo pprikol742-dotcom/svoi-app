@@ -10,11 +10,11 @@ import type { Listing } from "@/types";
 const TOOLS = [
   {
     title: "Подарок 500",
-    url: "https://vk.ru/away.php?to=https%3A%2F%2Ftbank.ru%2Fbaf%2F70dKHo5Vgnl&utf=1",
+    url: "https://vk.ru/away.php?to=https%3A%2F%2Ftbank.ru%2Fbaf%2F2JQMqTOuPEi&utf=1",
   },
   {
     title: "Лимит до 1 миллиона",
-    url: "https://vk.ru/away.php?to=https%3A%2F%2Ftbank.ru%2Fbaf%2F2JQMqTOuPEi&utf=1",
+    url: "https://vk.ru/away.php?to=https%3A%2F%2Ftbank.ru%2Fbaf%2F70dKHo5Vgnl&utf=1",
   },
   {
     title: "Т-Мобайл",
