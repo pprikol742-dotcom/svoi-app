@@ -110,7 +110,7 @@ function ReportModal({
           border-radius: var(--radius-lg) var(--radius-lg) 0 0;
           padding: var(--space-5) var(--space-4) calc(var(--space-5) + var(--safe-bottom));
         }
-        .report-modal h3 { font-size: 16.5px; font-weight: 700; margin-bottom: var(--space-3); }
+        .report-modal h3 { font-size: 16.5px; font-weight: 700; margin-bottom: var(--space-3); text-align: center; }
         .report-modal__hint { font-size: 14px; color: var(--color-text-secondary); margin-bottom: var(--space-4); }
         .report-modal__reasons {
           display: flex;
@@ -140,10 +140,132 @@ function ReportModal({
           resize: none;
           margin-bottom: var(--space-3);
         }
-        .report-modal__error { color: var(--color-danger); font-size: 13px; margin-bottom: var(--space-2); }
+        .report-modal__error { color: var(--color-danger); font-size: 13px; margin-bottom: var(--space-2); text-align: center; }
         .report-modal__actions { display: flex; gap: var(--space-2); }
         .report-modal__actions .btn-primary,
         .report-modal__actions .btn-secondary { flex: 1; width: auto; }
+      `}</style>
+    </div>
+  );
+}
+
+interface ReviewRow {
+  id: string;
+  listing_id: string;
+  reviewer_id: string;
+  reviewed_id: string;
+  rating: number;
+  comment: string | null;
+  created_at: string;
+  reviewer?: { display_name: string } | null;
+}
+
+function Stars({ value, size = 16 }: { value: number; size?: number }) {
+  return (
+    <span className="stars-row">
+      {[1, 2, 3, 4, 5].map((n) => (
+        <svg
+          key={n}
+          viewBox="0 0 24 24"
+          width={size}
+          height={size}
+          fill={n <= value ? "currentColor" : "none"}
+          stroke="currentColor"
+          strokeWidth="1.5"
+        >
+          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+        </svg>
+      ))}
+      <style>{`
+        .stars-row { display: inline-flex; gap: 2px; color: var(--color-accent); }
+      `}</style>
+    </span>
+  );
+}
+
+function ReviewModal({
+  listingId,
+  reviewerId,
+  reviewedId,
+  onClose,
+  onSubmitted,
+}: {
+  listingId: string;
+  reviewerId: string;
+  reviewedId: string;
+  onClose: () => void;
+  onSubmitted: (review: ReviewRow) => void;
+}) {
+  const [rating, setRating] = useState(5);
+  const [comment, setComment] = useState("");
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async () => {
+    setSending(true);
+    setError(null);
+    const { data, error } = await supabase
+      .from("reviews")
+      .insert({ listing_id: listingId, reviewer_id: reviewerId, reviewed_id: reviewedId, rating, comment: comment.trim() || null })
+      .select("*, reviewer:profiles!reviews_reviewer_id_fkey(display_name)")
+      .single();
+    setSending(false);
+    if (error) {
+      setError(
+        error.message.includes("duplicate")
+          ? "Вы уже оставляли отзыв на это объявление"
+          : "Сначала напишите продавцу, чтобы оставить отзыв"
+      );
+      return;
+    }
+    if (data) onSubmitted(data as unknown as ReviewRow);
+    onClose();
+  };
+
+  return (
+    <div className="report-modal-backdrop" onClick={onClose}>
+      <div className="report-modal" onClick={(e) => e.stopPropagation()}>
+        <h3>Оставить отзыв</h3>
+        <div className="review-modal__stars">
+          {[1, 2, 3, 4, 5].map((n) => (
+            <button key={n} onClick={() => setRating(n)} aria-label={`${n} звёзд`}>
+              <svg
+                viewBox="0 0 24 24"
+                fill={n <= rating ? "currentColor" : "none"}
+                stroke="currentColor"
+                strokeWidth="1.5"
+              >
+                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+              </svg>
+            </button>
+          ))}
+        </div>
+        <textarea
+          className="report-modal__comment"
+          placeholder="Комментарий (необязательно)"
+          value={comment}
+          onChange={(e) => setComment(e.target.value)}
+          rows={3}
+        />
+        {error && <p className="report-modal__error">{error}</p>}
+        <div className="report-modal__actions">
+          <button className="btn-secondary" onClick={onClose} disabled={sending}>
+            Отмена
+          </button>
+          <button className="btn-primary" onClick={handleSubmit} disabled={sending}>
+            {sending ? "Отправка…" : "Отправить"}
+          </button>
+        </div>
+      </div>
+      <style>{`
+        .review-modal__stars {
+          display: flex;
+          gap: 6px;
+          margin-bottom: var(--space-4);
+          justify-content: center;
+        }
+        .review-modal__stars button { color: var(--color-accent); }
+        .review-modal__stars svg { width: 34px; height: 34px; }
       `}</style>
     </div>
   );
@@ -162,6 +284,8 @@ export function ListingDetailScreen() {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [busy, setBusy] = useState(false);
   const [showReport, setShowReport] = useState(false);
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [reviews, setReviews] = useState<ReviewRow[]>([]);
   const touchStartX = useRef<number | null>(null);
   const touchDeltaX = useRef(0);
   const justSwiped = useRef(false);
@@ -177,6 +301,17 @@ export function ListingDetailScreen() {
       .single()
       .then(({ data }) => data && setListing(data as unknown as ListingWithOwner));
   }, [id]);
+
+  useEffect(() => {
+    if (!listing?.owner_id) return;
+    supabase
+      .from("reviews")
+      .select("*, reviewer:profiles!reviews_reviewer_id_fkey(display_name)")
+      .eq("reviewed_id", listing.owner_id)
+      .order("created_at", { ascending: false })
+      .limit(20)
+      .then(({ data }) => data && setReviews(data as unknown as ReviewRow[]));
+  }, [listing?.owner_id]);
 
   const photoCount = listing?.photos.length ?? 0;
 
@@ -219,6 +354,7 @@ export function ListingDetailScreen() {
   }
 
   const isOwnListing = listing.owner_id === userId;
+  const myReview = reviews.find((r) => r.reviewer_id === userId);
 
   const handleContact = async () => {
     if (!userId) return navigate("/auth");
@@ -251,12 +387,28 @@ export function ListingDetailScreen() {
     setShowReport(true);
   };
 
+  const handleDeleteMyReview = async () => {
+    if (!myReview) return;
+    await supabase.from("reviews").delete().eq("id", myReview.id);
+    setReviews((prev) => prev.filter((r) => r.id !== myReview.id));
+  };
+
   return (
     <div className="screen screen--no-tab-padding">
       <TopBar title={listing.subcategory?.title ?? listing.category?.title ?? "Объявление"} onBack />
 
       {showReport && userId && (
         <ReportModal listingId={listing.id} userId={userId} onClose={() => setShowReport(false)} />
+      )}
+
+      {showReviewModal && userId && (
+        <ReviewModal
+          listingId={listing.id}
+          reviewerId={userId}
+          reviewedId={listing.owner_id}
+          onClose={() => setShowReviewModal(false)}
+          onSubmitted={(review) => setReviews((prev) => [review, ...prev])}
+        />
       )}
 
       <div
@@ -357,6 +509,46 @@ export function ListingDetailScreen() {
             Пожаловаться на объявление
           </button>
         )}
+
+        <div className="reviews-section">
+          <div className="reviews-section__header">
+            <h3>Отзывы{reviews.length > 0 ? ` (${reviews.length})` : ""}</h3>
+            {!isOwnListing && !myReview && (
+              <button className="reviews-section__add" onClick={() => (userId ? setShowReviewModal(true) : navigate("/auth"))}>
+                Оставить отзыв
+              </button>
+            )}
+          </div>
+
+          {myReview && (
+            <div className="review-card review-card--mine">
+              <div className="review-card__top">
+                <Stars value={myReview.rating} />
+                <button className="review-card__delete" onClick={handleDeleteMyReview}>
+                  Удалить
+                </button>
+              </div>
+              {myReview.comment && <p className="review-card__comment">{myReview.comment}</p>}
+              <p className="review-card__meta">Ваш отзыв</p>
+            </div>
+          )}
+
+          {reviews.filter((r) => r.id !== myReview?.id).length === 0 && !myReview ? (
+            <p className="reviews-section__empty">Пока нет отзывов</p>
+          ) : (
+            reviews
+              .filter((r) => r.id !== myReview?.id)
+              .map((r) => (
+                <div key={r.id} className="review-card">
+                  <Stars value={r.rating} />
+                  {r.comment && <p className="review-card__comment">{r.comment}</p>}
+                  <p className="review-card__meta">
+                    {r.reviewer?.display_name ?? "пользователь"} · {new Date(r.created_at).toLocaleDateString("ru-RU")}
+                  </p>
+                </div>
+              ))
+          )}
+        </div>
       </div>
 
       {isOwnListing && listing.status === "expired" && (
@@ -511,6 +703,35 @@ export function ListingDetailScreen() {
           color: var(--color-text-secondary);
           text-decoration: underline;
         }
+        .reviews-section { margin-top: var(--space-5); }
+        .reviews-section__header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: var(--space-2);
+        }
+        .reviews-section__header h3 { font-size: 14px; }
+        .reviews-section__add {
+          font-size: 12.5px;
+          font-weight: 600;
+          color: var(--color-primary);
+          padding: 6px 12px;
+          border-radius: var(--radius-pill);
+          border: 1.5px solid var(--color-border);
+        }
+        .reviews-section__empty { font-size: 13px; color: var(--color-text-secondary); }
+        .review-card {
+          padding: var(--space-3);
+          background: var(--color-surface);
+          border-radius: var(--radius-md);
+          box-shadow: var(--shadow-card);
+          margin-bottom: var(--space-2);
+        }
+        .review-card--mine { border: 1.5px solid var(--color-primary); }
+        .review-card__top { display: flex; align-items: center; justify-content: space-between; }
+        .review-card__delete { font-size: 11.5px; color: var(--color-danger); }
+        .review-card__comment { font-size: 13.5px; margin-top: 6px; line-height: 1.4; }
+        .review-card__meta { font-size: 11px; color: var(--color-text-secondary); margin-top: 6px; }
         .detail-cta {
           position: fixed;
           bottom: 0; left: 0; right: 0;
