@@ -98,13 +98,29 @@ interface AdminListingRow {
   owner: { display_name: string } | null;
 }
 
+interface AdminReportRow {
+  id: string;
+  listing_id: string;
+  reason: string;
+  comment: string | null;
+  created_at: string;
+  resolved: boolean;
+  listing: { title: string } | null;
+  reporter: { display_name: string } | null;
+}
+
+type AdminTab = "listings" | "reports";
+
 function AdminPage({ onClose }: { onClose: () => void }) {
+  const [tab, setTab] = useState<AdminTab>("reports");
   const [rows, setRows] = useState<AdminListingRow[]>([]);
+  const [reports, setReports] = useState<AdminReportRow[]>([]);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
 
-  useEffect(() => {
+  const loadListings = () => {
+    setLoading(true);
     supabase
       .from("listings")
       .select("id, title, status, price, photos, created_at, owner:profiles!listings_owner_id_fkey(display_name)")
@@ -114,17 +130,47 @@ function AdminPage({ onClose }: { onClose: () => void }) {
         if (data) setRows(data as unknown as AdminListingRow[]);
         setLoading(false);
       });
-  }, []);
-
-  const handleDelete = async (id: string) => {
-    if (!window.confirm("Удалить это объявление безвозвратно? Отменить будет нельзя.")) return;
-    setDeletingId(id);
-    const { error } = await supabase.from("listings").delete().eq("id", id);
-    if (!error) setRows((prev) => prev.filter((r) => r.id !== id));
-    setDeletingId(null);
   };
 
-  const filtered = query.trim()
+  const loadReports = () => {
+    setLoading(true);
+    supabase
+      .from("reports")
+      .select(
+        "id, listing_id, reason, comment, created_at, resolved, listing:listings!reports_listing_id_fkey(title), reporter:profiles!reports_reporter_id_fkey(display_name)"
+      )
+      .eq("resolved", false)
+      .order("created_at", { ascending: false })
+      .then(({ data }) => {
+        if (data) setReports(data as unknown as AdminReportRow[]);
+        setLoading(false);
+      });
+  };
+
+  useEffect(() => {
+    if (tab === "listings") loadListings();
+    else loadReports();
+  }, [tab]);
+
+  const handleDeleteListing = async (id: string) => {
+    if (!window.confirm("Удалить это объявление безвозвратно? Отменить будет нельзя.")) return;
+    setBusyId(id);
+    const { error } = await supabase.from("listings").delete().eq("id", id);
+    if (!error) {
+      setRows((prev) => prev.filter((r) => r.id !== id));
+      setReports((prev) => prev.filter((r) => r.listing_id !== id));
+    }
+    setBusyId(null);
+  };
+
+  const handleResolveReport = async (id: string) => {
+    setBusyId(id);
+    const { error } = await supabase.from("reports").update({ resolved: true }).eq("id", id);
+    if (!error) setReports((prev) => prev.filter((r) => r.id !== id));
+    setBusyId(null);
+  };
+
+  const filteredListings = query.trim()
     ? rows.filter((r) => r.title.toLowerCase().includes(query.trim().toLowerCase()))
     : rows;
 
@@ -136,41 +182,81 @@ function AdminPage({ onClose }: { onClose: () => void }) {
             <path d="m15 18-6-6 6-6" />
           </svg>
         </button>
-        <h1>Админ-панель · объявления</h1>
+        <h1>Админ-панель</h1>
       </div>
 
-      <input
-        className="admin-page__search"
-        placeholder="Поиск по названию…"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-      />
+      <div className="admin-page__tabs">
+        <button className={`admin-page__tab${tab === "reports" ? " is-active" : ""}`} onClick={() => setTab("reports")}>
+          Жалобы{reports.length > 0 ? ` (${reports.length})` : ""}
+        </button>
+        <button className={`admin-page__tab${tab === "listings" ? " is-active" : ""}`} onClick={() => setTab("listings")}>
+          Все объявления
+        </button>
+      </div>
+
+      {tab === "listings" && (
+        <input
+          className="admin-page__search"
+          placeholder="Поиск по названию…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+      )}
 
       {loading ? (
         <p className="admin-page__hint">Загрузка…</p>
-      ) : filtered.length === 0 ? (
-        <p className="admin-page__hint">Ничего не найдено</p>
+      ) : tab === "listings" ? (
+        filteredListings.length === 0 ? (
+          <p className="admin-page__hint">Ничего не найдено</p>
+        ) : (
+          <div className="admin-page__list">
+            {filteredListings.map((r) => (
+              <div key={r.id} className="admin-row">
+                <div className="admin-row__thumb">
+                  {r.photos?.[0] ? <img src={r.photos[0]} alt="" /> : "—"}
+                </div>
+                <div className="admin-row__info">
+                  <p className="admin-row__title">{r.title}</p>
+                  <p className="admin-row__meta">
+                    {r.owner?.display_name ?? "неизвестно"} · {r.status}
+                    {r.price != null ? ` · ${r.price} ₽` : ""}
+                  </p>
+                </div>
+                <button className="admin-row__delete" onClick={() => handleDeleteListing(r.id)} disabled={busyId === r.id}>
+                  {busyId === r.id ? "…" : "Удалить"}
+                </button>
+              </div>
+            ))}
+          </div>
+        )
+      ) : reports.length === 0 ? (
+        <p className="admin-page__hint">Жалоб пока нет</p>
       ) : (
         <div className="admin-page__list">
-          {filtered.map((r) => (
-            <div key={r.id} className="admin-row">
-              <div className="admin-row__thumb">
-                {r.photos?.[0] ? <img src={r.photos[0]} alt="" /> : "—"}
+          {reports.map((r) => (
+            <div key={r.id} className="report-row">
+              <p className="report-row__listing">{r.listing?.title ?? "объявление удалено"}</p>
+              <p className="report-row__reason">{r.reason}</p>
+              {r.comment && <p className="report-row__comment">«{r.comment}»</p>}
+              <p className="report-row__meta">
+                от {r.reporter?.display_name ?? "неизвестно"} · {new Date(r.created_at).toLocaleDateString("ru-RU")}
+              </p>
+              <div className="report-row__actions">
+                <button
+                  className="report-row__resolve"
+                  onClick={() => handleResolveReport(r.id)}
+                  disabled={busyId === r.id}
+                >
+                  Отклонить жалобу
+                </button>
+                <button
+                  className="report-row__delete"
+                  onClick={() => handleDeleteListing(r.listing_id)}
+                  disabled={busyId === r.id}
+                >
+                  Удалить объявление
+                </button>
               </div>
-              <div className="admin-row__info">
-                <p className="admin-row__title">{r.title}</p>
-                <p className="admin-row__meta">
-                  {r.owner?.display_name ?? "неизвестно"} · {r.status}
-                  {r.price != null ? ` · ${r.price} ₽` : ""}
-                </p>
-              </div>
-              <button
-                className="admin-row__delete"
-                onClick={() => handleDelete(r.id)}
-                disabled={deletingId === r.id}
-              >
-                {deletingId === r.id ? "…" : "Удалить"}
-              </button>
             </div>
           ))}
         </div>
@@ -200,6 +286,23 @@ function AdminPage({ onClose }: { onClose: () => void }) {
         }
         .admin-page__back svg { width: 22px; height: 22px; }
         .admin-page__header h1 { font-size: 17px; font-weight: 700; }
+        .admin-page__tabs {
+          display: flex;
+          gap: var(--space-2);
+          padding: var(--space-3) var(--space-4) 0;
+        }
+        .admin-page__tab {
+          padding: 8px 14px;
+          border-radius: var(--radius-pill);
+          background: var(--color-surface);
+          color: var(--color-text-secondary);
+          font-size: 13px;
+          font-weight: 600;
+        }
+        .admin-page__tab.is-active {
+          background: var(--color-primary);
+          color: var(--color-text-onprimary);
+        }
         .admin-page__search {
           margin: var(--space-3) var(--space-4) 0;
           padding: 10px 14px;
@@ -254,6 +357,26 @@ function AdminPage({ onClose }: { onClose: () => void }) {
           font-size: 12px;
           font-weight: 600;
         }
+        .report-row {
+          background: var(--color-surface);
+          border-radius: var(--radius-md);
+          padding: var(--space-3);
+          box-shadow: var(--shadow-card);
+        }
+        .report-row__listing { font-size: 13.5px; font-weight: 600; }
+        .report-row__reason { font-size: 13px; color: var(--color-danger); margin-top: 4px; font-weight: 600; }
+        .report-row__comment { font-size: 12.5px; color: var(--color-text-secondary); margin-top: 4px; font-style: italic; }
+        .report-row__meta { font-size: 11px; color: var(--color-text-secondary); margin-top: 6px; }
+        .report-row__actions { display: flex; gap: var(--space-2); margin-top: var(--space-2); }
+        .report-row__resolve, .report-row__delete {
+          flex: 1;
+          padding: 8px 10px;
+          border-radius: var(--radius-pill);
+          font-size: 11.5px;
+          font-weight: 600;
+        }
+        .report-row__resolve { background: var(--color-surface); border: 1px solid var(--color-border); color: var(--color-text-secondary); }
+        .report-row__delete { background: var(--color-danger); color: #fff; }
       `}</style>
     </div>
   );

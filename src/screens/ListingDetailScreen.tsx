@@ -14,6 +14,141 @@ function formatPrice(listing: ListingWithOwner) {
   return `${listing.price.toLocaleString("ru-RU")} ₽`;
 }
 
+const REPORT_REASONS = [
+  "Мошенничество",
+  "Запрещённый товар/услуга",
+  "Спам или реклама",
+  "Оскорбительное содержание",
+  "Объявление устарело / уже продано",
+  "Другое",
+];
+
+function ReportModal({
+  listingId,
+  userId,
+  onClose,
+}: {
+  listingId: string;
+  userId: string;
+  onClose: () => void;
+}) {
+  const [reason, setReason] = useState(REPORT_REASONS[0]);
+  const [comment, setComment] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async () => {
+    setSending(true);
+    setError(null);
+    const { error } = await supabase.from("reports").insert({
+      listing_id: listingId,
+      reporter_id: userId,
+      reason,
+      comment: comment.trim() || null,
+    });
+    setSending(false);
+    if (error) setError("Не получилось отправить, попробуйте ещё раз");
+    else setSent(true);
+  };
+
+  return (
+    <div className="report-modal-backdrop" onClick={onClose}>
+      <div className="report-modal" onClick={(e) => e.stopPropagation()}>
+        {sent ? (
+          <>
+            <h3>Спасибо</h3>
+            <p className="report-modal__hint">Жалоба отправлена, мы её рассмотрим.</p>
+            <button className="btn-primary" onClick={onClose}>
+              Закрыть
+            </button>
+          </>
+        ) : (
+          <>
+            <h3>Пожаловаться на объявление</h3>
+            <div className="report-modal__reasons">
+              {REPORT_REASONS.map((r) => (
+                <label key={r} className="report-modal__reason">
+                  <input type="radio" name="reason" checked={reason === r} onChange={() => setReason(r)} />
+                  <span>{r}</span>
+                </label>
+              ))}
+            </div>
+            <textarea
+              className="report-modal__comment"
+              placeholder="Комментарий (необязательно)"
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              rows={3}
+            />
+            {error && <p className="report-modal__error">{error}</p>}
+            <div className="report-modal__actions">
+              <button className="btn-secondary" onClick={onClose} disabled={sending}>
+                Отмена
+              </button>
+              <button className="btn-primary" onClick={handleSubmit} disabled={sending}>
+                {sending ? "Отправка…" : "Отправить"}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+      <style>{`
+        .report-modal-backdrop {
+          position: fixed;
+          inset: 0;
+          z-index: 200;
+          background: rgba(0, 0, 0, 0.5);
+          display: flex;
+          align-items: flex-end;
+          justify-content: center;
+        }
+        .report-modal {
+          width: 100%;
+          max-width: 480px;
+          background: var(--color-bg);
+          border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+          padding: var(--space-5) var(--space-4) calc(var(--space-5) + var(--safe-bottom));
+        }
+        .report-modal h3 { font-size: 16.5px; font-weight: 700; margin-bottom: var(--space-3); }
+        .report-modal__hint { font-size: 14px; color: var(--color-text-secondary); margin-bottom: var(--space-4); }
+        .report-modal__reasons {
+          display: flex;
+          flex-direction: column;
+          gap: var(--space-2);
+          margin-bottom: var(--space-3);
+        }
+        .report-modal__reason {
+          display: flex;
+          align-items: center;
+          gap: var(--space-2);
+          padding: var(--space-2) var(--space-3);
+          background: var(--color-surface);
+          border-radius: var(--radius-md);
+          font-size: 14px;
+        }
+        .report-modal__reason input { accent-color: var(--color-primary); width: 16px; height: 16px; }
+        .report-modal__comment {
+          width: 100%;
+          padding: var(--space-3);
+          border-radius: var(--radius-md);
+          border: 1.5px solid var(--color-border);
+          background: var(--color-surface);
+          color: var(--color-text-primary);
+          font-size: 14px;
+          font-family: inherit;
+          resize: none;
+          margin-bottom: var(--space-3);
+        }
+        .report-modal__error { color: var(--color-danger); font-size: 13px; margin-bottom: var(--space-2); }
+        .report-modal__actions { display: flex; gap: var(--space-2); }
+        .report-modal__actions .btn-primary,
+        .report-modal__actions .btn-secondary { flex: 1; width: auto; }
+      `}</style>
+    </div>
+  );
+}
+
 export function ListingDetailScreen() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -26,6 +161,7 @@ export function ListingDetailScreen() {
   const [contacting, setContacting] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [showReport, setShowReport] = useState(false);
   const touchStartX = useRef<number | null>(null);
   const touchDeltaX = useRef(0);
   const justSwiped = useRef(false);
@@ -110,9 +246,18 @@ export function ListingDetailScreen() {
     if (!error) setListing({ ...listing, status: "pending_review", created_at: new Date().toISOString() });
   };
 
+  const handleReportClick = () => {
+    if (!userId) return navigate("/auth");
+    setShowReport(true);
+  };
+
   return (
     <div className="screen screen--no-tab-padding">
       <TopBar title={listing.subcategory?.title ?? listing.category?.title ?? "Объявление"} onBack />
+
+      {showReport && userId && (
+        <ReportModal listingId={listing.id} userId={userId} onClose={() => setShowReport(false)} />
+      )}
 
       <div
         className="gallery"
@@ -206,6 +351,12 @@ export function ListingDetailScreen() {
             <p className="seller-card__rating">★ {listing.owner.rating?.toFixed(1) ?? "5.0"}</p>
           </div>
         </div>
+
+        {!isOwnListing && (
+          <button className="report-link" onClick={handleReportClick}>
+            Пожаловаться на объявление
+          </button>
+        )}
       </div>
 
       {isOwnListing && listing.status === "expired" && (
@@ -353,6 +504,13 @@ export function ListingDetailScreen() {
         .seller-card__avatar img { width: 100%; height: 100%; object-fit: cover; }
         .seller-card__name { font-weight: 600; font-size: 14.5px; }
         .seller-card__rating { font-size: 12.5px; color: var(--color-accent); margin-top: 2px; }
+        .report-link {
+          display: block;
+          margin: var(--space-3) auto 0;
+          font-size: 12.5px;
+          color: var(--color-text-secondary);
+          text-decoration: underline;
+        }
         .detail-cta {
           position: fixed;
           bottom: 0; left: 0; right: 0;
