@@ -88,6 +88,177 @@ function ToolsPage({ onClose }: { onClose: () => void }) {
   );
 }
 
+interface AdminListingRow {
+  id: string;
+  title: string;
+  status: string;
+  price: number | null;
+  photos: string[];
+  created_at: string;
+  owner: { display_name: string } | null;
+}
+
+function AdminPage({ onClose }: { onClose: () => void }) {
+  const [rows, setRows] = useState<AdminListingRow[]>([]);
+  const [query, setQuery] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    supabase
+      .from("listings")
+      .select("id, title, status, price, photos, created_at, owner:profiles!listings_owner_id_fkey(display_name)")
+      .order("created_at", { ascending: false })
+      .limit(200)
+      .then(({ data }) => {
+        if (data) setRows(data as unknown as AdminListingRow[]);
+        setLoading(false);
+      });
+  }, []);
+
+  const handleDelete = async (id: string) => {
+    if (!window.confirm("Удалить это объявление безвозвратно? Отменить будет нельзя.")) return;
+    setDeletingId(id);
+    const { error } = await supabase.from("listings").delete().eq("id", id);
+    if (!error) setRows((prev) => prev.filter((r) => r.id !== id));
+    setDeletingId(null);
+  };
+
+  const filtered = query.trim()
+    ? rows.filter((r) => r.title.toLowerCase().includes(query.trim().toLowerCase()))
+    : rows;
+
+  return (
+    <div className="admin-page">
+      <div className="admin-page__header">
+        <button className="admin-page__back" onClick={onClose} aria-label="Назад">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="m15 18-6-6 6-6" />
+          </svg>
+        </button>
+        <h1>Админ-панель · объявления</h1>
+      </div>
+
+      <input
+        className="admin-page__search"
+        placeholder="Поиск по названию…"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+      />
+
+      {loading ? (
+        <p className="admin-page__hint">Загрузка…</p>
+      ) : filtered.length === 0 ? (
+        <p className="admin-page__hint">Ничего не найдено</p>
+      ) : (
+        <div className="admin-page__list">
+          {filtered.map((r) => (
+            <div key={r.id} className="admin-row">
+              <div className="admin-row__thumb">
+                {r.photos?.[0] ? <img src={r.photos[0]} alt="" /> : "—"}
+              </div>
+              <div className="admin-row__info">
+                <p className="admin-row__title">{r.title}</p>
+                <p className="admin-row__meta">
+                  {r.owner?.display_name ?? "неизвестно"} · {r.status}
+                  {r.price != null ? ` · ${r.price} ₽` : ""}
+                </p>
+              </div>
+              <button
+                className="admin-row__delete"
+                onClick={() => handleDelete(r.id)}
+                disabled={deletingId === r.id}
+              >
+                {deletingId === r.id ? "…" : "Удалить"}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <style>{`
+        .admin-page {
+          position: fixed;
+          inset: 0;
+          z-index: 100;
+          background: var(--color-bg);
+          display: flex;
+          flex-direction: column;
+        }
+        .admin-page__header {
+          display: flex;
+          align-items: center;
+          gap: var(--space-3);
+          padding: calc(var(--space-3) + var(--safe-top)) var(--space-4) var(--space-3);
+          border-bottom: 1px solid var(--color-border);
+        }
+        .admin-page__back {
+          width: 36px; height: 36px;
+          display: flex; align-items: center; justify-content: center;
+          flex-shrink: 0;
+          color: var(--color-text-primary);
+        }
+        .admin-page__back svg { width: 22px; height: 22px; }
+        .admin-page__header h1 { font-size: 17px; font-weight: 700; }
+        .admin-page__search {
+          margin: var(--space-3) var(--space-4) 0;
+          padding: 10px 14px;
+          border-radius: var(--radius-md);
+          border: 1.5px solid var(--color-border);
+          background: var(--color-surface);
+          color: var(--color-text-primary);
+          font-size: 14px;
+        }
+        .admin-page__hint {
+          padding: var(--space-5) var(--space-4);
+          color: var(--color-text-secondary);
+          font-size: 14px;
+          text-align: center;
+        }
+        .admin-page__list {
+          display: flex;
+          flex-direction: column;
+          gap: var(--space-2);
+          padding: var(--space-3) var(--space-4);
+          overflow-y: auto;
+        }
+        .admin-row {
+          display: flex;
+          align-items: center;
+          gap: var(--space-3);
+          background: var(--color-surface);
+          border-radius: var(--radius-md);
+          padding: var(--space-2);
+          box-shadow: var(--shadow-card);
+        }
+        .admin-row__thumb {
+          width: 48px; height: 48px;
+          border-radius: var(--radius-sm);
+          overflow: hidden;
+          flex-shrink: 0;
+          background: var(--color-accent-soft);
+          display: flex; align-items: center; justify-content: center;
+          color: var(--color-text-secondary);
+          font-size: 12px;
+        }
+        .admin-row__thumb img { width: 100%; height: 100%; object-fit: cover; }
+        .admin-row__info { flex: 1; min-width: 0; }
+        .admin-row__title { font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .admin-row__meta { font-size: 11.5px; color: var(--color-text-secondary); margin-top: 2px; }
+        .admin-row__delete {
+          flex-shrink: 0;
+          padding: 8px 12px;
+          border-radius: var(--radius-pill);
+          background: var(--color-danger);
+          color: #fff;
+          font-size: 12px;
+          font-weight: 600;
+        }
+      `}</style>
+    </div>
+  );
+}
+
 export function ProfileScreen() {
   const { userId, profile, signOut } = useAuthStore();
   const { theme, toggleTheme } = useThemeStore();
@@ -96,6 +267,7 @@ export function ProfileScreen() {
   const [myListings, setMyListings] = useState<Listing[]>([]);
   const [republishingId, setRepublishingId] = useState<string | null>(null);
   const [showTools, setShowTools] = useState(false);
+  const [showAdmin, setShowAdmin] = useState(false);
 
   useEffect(() => {
     if (!userId) return;
@@ -145,6 +317,7 @@ export function ProfileScreen() {
   return (
     <div className="screen">
       {showTools && <ToolsPage onClose={() => setShowTools(false)} />}
+      {showAdmin && <AdminPage onClose={() => setShowAdmin(false)} />}
 
       <div className="profile-header">
         <div className="profile-avatar">
@@ -178,6 +351,15 @@ export function ProfileScreen() {
           <path d="m9 6 6 6-6 6" />
         </svg>
       </button>
+
+      {profile?.is_admin && (
+        <button className="admin-toggle" onClick={() => setShowAdmin(true)}>
+          <span>Админ-панель</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="m9 6 6 6-6 6" />
+          </svg>
+        </button>
+      )}
 
       <button className="settings-row settings-row--link" onClick={() => navigate("/favorites")}>
         <span>Избранное</span>
@@ -294,7 +476,7 @@ export function ProfileScreen() {
           align-items: center;
           justify-content: space-between;
           width: calc(100% - var(--space-4) * 2);
-          margin: 0 var(--space-4) var(--space-5);
+          margin: 0 var(--space-4) var(--space-2);
           padding: var(--space-3);
           background: var(--color-accent);
           color: var(--color-text-onaccent);
@@ -305,6 +487,22 @@ export function ProfileScreen() {
           text-align: left;
         }
         .tools-toggle svg { width: 18px; height: 18px; flex-shrink: 0; margin-left: var(--space-2); }
+        .admin-toggle {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          width: calc(100% - var(--space-4) * 2);
+          margin: 0 var(--space-4) var(--space-5);
+          padding: var(--space-3);
+          background: var(--color-danger-soft);
+          color: var(--color-danger);
+          border: 1.5px solid var(--color-danger);
+          border-radius: var(--radius-md);
+          font-size: 14.5px;
+          font-weight: 700;
+          text-align: left;
+        }
+        .admin-toggle svg { width: 18px; height: 18px; flex-shrink: 0; margin-left: var(--space-2); }
         .section-title { padding: 0 var(--space-4); font-size: 14px; margin-bottom: var(--space-2); }
         .my-listings { display: flex; flex-direction: column; padding: 0 var(--space-4); gap: var(--space-2); }
         .my-listing-row {

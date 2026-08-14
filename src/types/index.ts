@@ -30,6 +30,7 @@ export interface Profile {
   created_at: string;
   rating: number | null;
   listings_count: number | null;
+  is_admin: boolean;
 }
 
 export type ListingStatus = "active" | "reserved" | "sold" | "pending_review" | "rejected" | "expired";
