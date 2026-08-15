@@ -6,23 +6,24 @@ import { useThemeStore } from "@/store/useThemeStore";
 import { useListingsStore } from "@/store/useListingsStore";
 import type { Listing } from "@/types";
 
-// Подписи и ссылки на партнёрские предложения — меняй здесь, в одном месте.
-const TOOLS = [
-  {
-    title: "Подарок 500",
-    url: "https://vk.ru/away.php?to=https%3A%2F%2Ftbank.ru%2Fbaf%2F2JQMqTOuPEi&utf=1",
-  },
-  {
-    title: "Лимит до 1 миллиона",
-    url: "https://vk.ru/away.php?to=https%3A%2F%2Ftbank.ru%2Fbaf%2F70dKHo5Vgnl&utf=1",
-  },
-  {
-    title: "Т-Мобайл",
-    url: "https://vk.ru/away.php?to=https%3A%2F%2Ftbank.ru%2Fbaf%2FGatyuPMEwP&utf=1",
-  },
-];
+interface PartnerTool {
+  id: string;
+  title: string;
+  url: string;
+  sort_order: number;
+}
 
 function ToolsPage({ onClose }: { onClose: () => void }) {
+  const [tools, setTools] = useState<PartnerTool[]>([]);
+
+  useEffect(() => {
+    supabase
+      .from("partner_tools")
+      .select("*")
+      .order("sort_order", { ascending: true })
+      .then(({ data }) => data && setTools(data as PartnerTool[]));
+  }, []);
+
   return (
     <div className="tools-page">
       <div className="tools-page__header">
@@ -34,8 +35,8 @@ function ToolsPage({ onClose }: { onClose: () => void }) {
         <h1>Полезные инструменты</h1>
       </div>
       <div className="tools-page__list">
-        {TOOLS.map((tool) => (
-          <a key={tool.url} className="tools-page__btn" href={tool.url} target="_blank" rel="noopener noreferrer">
+        {tools.map((tool) => (
+          <a key={tool.id} className="tools-page__btn" href={tool.url} target="_blank" rel="noopener noreferrer">
             {tool.title}
           </a>
         ))}
@@ -109,15 +110,21 @@ interface AdminReportRow {
   reporter: { display_name: string } | null;
 }
 
-type AdminTab = "listings" | "reports";
+type AdminTab = "reports" | "listings" | "tools";
 
 function AdminPage({ onClose }: { onClose: () => void }) {
   const [tab, setTab] = useState<AdminTab>("reports");
   const [rows, setRows] = useState<AdminListingRow[]>([]);
   const [reports, setReports] = useState<AdminReportRow[]>([]);
+  const [tools, setTools] = useState<PartnerTool[]>([]);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [newTitle, setNewTitle] = useState("");
+  const [newUrl, setNewUrl] = useState("");
+  const [editingToolId, setEditingToolId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editUrl, setEditUrl] = useState("");
 
   const loadListings = () => {
     setLoading(true);
@@ -147,9 +154,22 @@ function AdminPage({ onClose }: { onClose: () => void }) {
       });
   };
 
+  const loadTools = () => {
+    setLoading(true);
+    supabase
+      .from("partner_tools")
+      .select("*")
+      .order("sort_order", { ascending: true })
+      .then(({ data }) => {
+        if (data) setTools(data as PartnerTool[]);
+        setLoading(false);
+      });
+  };
+
   useEffect(() => {
     if (tab === "listings") loadListings();
-    else loadReports();
+    else if (tab === "reports") loadReports();
+    else loadTools();
   }, [tab]);
 
   const handleDeleteListing = async (id: string) => {
@@ -167,6 +187,53 @@ function AdminPage({ onClose }: { onClose: () => void }) {
     setBusyId(id);
     const { error } = await supabase.from("reports").update({ resolved: true }).eq("id", id);
     if (!error) setReports((prev) => prev.filter((r) => r.id !== id));
+    setBusyId(null);
+  };
+
+  const handleAddTool = async () => {
+    if (!newTitle.trim() || !newUrl.trim()) return;
+    setBusyId("new");
+    const maxOrder = tools.reduce((m, t) => Math.max(m, t.sort_order), 0);
+    const { data, error } = await supabase
+      .from("partner_tools")
+      .insert({ title: newTitle.trim(), url: newUrl.trim(), sort_order: maxOrder + 1 })
+      .select()
+      .single();
+    if (!error && data) {
+      setTools((prev) => [...prev, data as PartnerTool]);
+      setNewTitle("");
+      setNewUrl("");
+    }
+    setBusyId(null);
+  };
+
+  const startEditTool = (t: PartnerTool) => {
+    setEditingToolId(t.id);
+    setEditTitle(t.title);
+    setEditUrl(t.url);
+  };
+
+  const saveEditTool = async () => {
+    if (!editingToolId || !editTitle.trim() || !editUrl.trim()) return;
+    setBusyId(editingToolId);
+    const { error } = await supabase
+      .from("partner_tools")
+      .update({ title: editTitle.trim(), url: editUrl.trim() })
+      .eq("id", editingToolId);
+    if (!error) {
+      setTools((prev) =>
+        prev.map((t) => (t.id === editingToolId ? { ...t, title: editTitle.trim(), url: editUrl.trim() } : t))
+      );
+      setEditingToolId(null);
+    }
+    setBusyId(null);
+  };
+
+  const deleteTool = async (id: string) => {
+    if (!window.confirm("Удалить эту ссылку из списка инструментов?")) return;
+    setBusyId(id);
+    const { error } = await supabase.from("partner_tools").delete().eq("id", id);
+    if (!error) setTools((prev) => prev.filter((t) => t.id !== id));
     setBusyId(null);
   };
 
@@ -190,7 +257,10 @@ function AdminPage({ onClose }: { onClose: () => void }) {
           Жалобы{reports.length > 0 ? ` (${reports.length})` : ""}
         </button>
         <button className={`admin-page__tab${tab === "listings" ? " is-active" : ""}`} onClick={() => setTab("listings")}>
-          Все объявления
+          Объявления
+        </button>
+        <button className={`admin-page__tab${tab === "tools" ? " is-active" : ""}`} onClick={() => setTab("tools")}>
+          Инструменты
         </button>
       </div>
 
@@ -229,36 +299,90 @@ function AdminPage({ onClose }: { onClose: () => void }) {
             ))}
           </div>
         )
-      ) : reports.length === 0 ? (
-        <p className="admin-page__hint">Жалоб пока нет</p>
+      ) : tab === "reports" ? (
+        reports.length === 0 ? (
+          <p className="admin-page__hint">Жалоб пока нет</p>
+        ) : (
+          <div className="admin-page__list">
+            {reports.map((r) => (
+              <div key={r.id} className="report-row">
+                <p className="report-row__listing">{r.listing?.title ?? "объявление удалено"}</p>
+                <p className="report-row__reason">{r.reason}</p>
+                {r.comment && <p className="report-row__comment">«{r.comment}»</p>}
+                <p className="report-row__meta">
+                  от {r.reporter?.display_name ?? "неизвестно"} · {new Date(r.created_at).toLocaleDateString("ru-RU")}
+                </p>
+                <div className="report-row__actions">
+                  <button
+                    className="report-row__resolve"
+                    onClick={() => handleResolveReport(r.id)}
+                    disabled={busyId === r.id}
+                  >
+                    Отклонить жалобу
+                  </button>
+                  <button
+                    className="report-row__delete"
+                    onClick={() => handleDeleteListing(r.listing_id)}
+                    disabled={busyId === r.id}
+                  >
+                    Удалить объявление
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )
       ) : (
         <div className="admin-page__list">
-          {reports.map((r) => (
-            <div key={r.id} className="report-row">
-              <p className="report-row__listing">{r.listing?.title ?? "объявление удалено"}</p>
-              <p className="report-row__reason">{r.reason}</p>
-              {r.comment && <p className="report-row__comment">«{r.comment}»</p>}
-              <p className="report-row__meta">
-                от {r.reporter?.display_name ?? "неизвестно"} · {new Date(r.created_at).toLocaleDateString("ru-RU")}
-              </p>
-              <div className="report-row__actions">
-                <button
-                  className="report-row__resolve"
-                  onClick={() => handleResolveReport(r.id)}
-                  disabled={busyId === r.id}
-                >
-                  Отклонить жалобу
-                </button>
-                <button
-                  className="report-row__delete"
-                  onClick={() => handleDeleteListing(r.listing_id)}
-                  disabled={busyId === r.id}
-                >
-                  Удалить объявление
-                </button>
+          <div className="tool-form">
+            <input
+              className="tool-form__input"
+              placeholder="Название"
+              value={newTitle}
+              onChange={(e) => setNewTitle(e.target.value)}
+            />
+            <input
+              className="tool-form__input"
+              placeholder="Ссылка (https://…)"
+              value={newUrl}
+              onChange={(e) => setNewUrl(e.target.value)}
+            />
+            <button className="tool-form__add" onClick={handleAddTool} disabled={busyId === "new"}>
+              {busyId === "new" ? "…" : "Добавить ссылку"}
+            </button>
+          </div>
+
+          {tools.map((t) =>
+            editingToolId === t.id ? (
+              <div key={t.id} className="tool-form">
+                <input className="tool-form__input" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} />
+                <input className="tool-form__input" value={editUrl} onChange={(e) => setEditUrl(e.target.value)} />
+                <div className="tool-form__row">
+                  <button className="tool-form__cancel" onClick={() => setEditingToolId(null)}>
+                    Отмена
+                  </button>
+                  <button className="tool-form__add" onClick={saveEditTool} disabled={busyId === t.id}>
+                    {busyId === t.id ? "…" : "Сохранить"}
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
+            ) : (
+              <div key={t.id} className="admin-row">
+                <div className="admin-row__info">
+                  <p className="admin-row__title">{t.title}</p>
+                  <p className="admin-row__meta">{t.url}</p>
+                </div>
+                <div className="tool-row__actions">
+                  <button className="tool-row__edit" onClick={() => startEditTool(t)}>
+                    Изменить
+                  </button>
+                  <button className="admin-row__delete" onClick={() => deleteTool(t.id)} disabled={busyId === t.id}>
+                    {busyId === t.id ? "…" : "Удалить"}
+                  </button>
+                </div>
+              </div>
+            )
+          )}
         </div>
       )}
 
@@ -290,8 +414,10 @@ function AdminPage({ onClose }: { onClose: () => void }) {
           display: flex;
           gap: var(--space-2);
           padding: var(--space-3) var(--space-4) 0;
+          overflow-x: auto;
         }
         .admin-page__tab {
+          flex-shrink: 0;
           padding: 8px 14px;
           border-radius: var(--radius-pill);
           background: var(--color-surface);
@@ -347,7 +473,7 @@ function AdminPage({ onClose }: { onClose: () => void }) {
         .admin-row__thumb img { width: 100%; height: 100%; object-fit: cover; }
         .admin-row__info { flex: 1; min-width: 0; }
         .admin-row__title { font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .admin-row__meta { font-size: 11.5px; color: var(--color-text-secondary); margin-top: 2px; }
+        .admin-row__meta { font-size: 11.5px; color: var(--color-text-secondary); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .admin-row__delete {
           flex-shrink: 0;
           padding: 8px 12px;
@@ -377,6 +503,52 @@ function AdminPage({ onClose }: { onClose: () => void }) {
         }
         .report-row__resolve { background: var(--color-surface); border: 1px solid var(--color-border); color: var(--color-text-secondary); }
         .report-row__delete { background: var(--color-danger); color: #fff; }
+        .tool-form {
+          background: var(--color-surface);
+          border-radius: var(--radius-md);
+          padding: var(--space-3);
+          box-shadow: var(--shadow-card);
+          display: flex;
+          flex-direction: column;
+          gap: var(--space-2);
+        }
+        .tool-form__input {
+          padding: 10px 12px;
+          border-radius: var(--radius-sm);
+          border: 1.5px solid var(--color-border);
+          background: var(--color-bg);
+          color: var(--color-text-primary);
+          font-size: 13.5px;
+        }
+        .tool-form__row { display: flex; gap: var(--space-2); }
+        .tool-form__add {
+          padding: 9px 12px;
+          border-radius: var(--radius-pill);
+          background: var(--color-primary);
+          color: var(--color-text-onprimary);
+          font-size: 12.5px;
+          font-weight: 600;
+        }
+        .tool-form__cancel {
+          flex: 1;
+          padding: 9px 12px;
+          border-radius: var(--radius-pill);
+          background: var(--color-bg);
+          border: 1px solid var(--color-border);
+          color: var(--color-text-secondary);
+          font-size: 12.5px;
+          font-weight: 600;
+        }
+        .tool-row__actions { display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
+        .tool-row__edit {
+          padding: 6px 10px;
+          border-radius: var(--radius-pill);
+          background: var(--color-bg);
+          border: 1px solid var(--color-border);
+          color: var(--color-text-secondary);
+          font-size: 11px;
+          font-weight: 600;
+        }
       `}</style>
     </div>
   );
