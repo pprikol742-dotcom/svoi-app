@@ -110,7 +110,7 @@ interface AdminReportRow {
   reporter: { display_name: string } | null;
 }
 
-type AdminTab = "reports" | "listings" | "tools";
+type AdminTab = "reports" | "listings" | "tools" | "notifications";
 
 function AdminPage({ onClose }: { onClose: () => void }) {
   const [tab, setTab] = useState<AdminTab>("reports");
@@ -125,6 +125,10 @@ function AdminPage({ onClose }: { onClose: () => void }) {
   const [editingToolId, setEditingToolId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editUrl, setEditUrl] = useState("");
+  const [notifTitle, setNotifTitle] = useState("");
+  const [notifBody, setNotifBody] = useState("");
+  const [notifSent, setNotifSent] = useState(false);
+  const [notifCount, setNotifCount] = useState<number | null>(null);
 
   const loadListings = () => {
     setLoading(true);
@@ -169,7 +173,8 @@ function AdminPage({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     if (tab === "listings") loadListings();
     else if (tab === "reports") loadReports();
-    else loadTools();
+    else if (tab === "tools") loadTools();
+    else setLoading(false);
   }, [tab]);
 
   const handleDeleteListing = async (id: string) => {
@@ -237,6 +242,29 @@ function AdminPage({ onClose }: { onClose: () => void }) {
     setBusyId(null);
   };
 
+  const handleSendNotification = async () => {
+    if (!notifTitle.trim()) return;
+    setBusyId("notif");
+    setNotifSent(false);
+    const { data: allProfiles } = await supabase.from("profiles").select("id");
+    if (allProfiles && allProfiles.length > 0) {
+      const rows = allProfiles.map((p) => ({
+        user_id: p.id,
+        title: notifTitle.trim(),
+        body: notifBody.trim() || null,
+        type: "admin",
+      }));
+      const { error } = await supabase.from("notifications").insert(rows);
+      if (!error) {
+        setNotifCount(allProfiles.length);
+        setNotifSent(true);
+        setNotifTitle("");
+        setNotifBody("");
+      }
+    }
+    setBusyId(null);
+  };
+
   const filteredListings = query.trim()
     ? rows.filter((r) => r.title.toLowerCase().includes(query.trim().toLowerCase()))
     : rows;
@@ -262,6 +290,9 @@ function AdminPage({ onClose }: { onClose: () => void }) {
         <button className={`admin-page__tab${tab === "tools" ? " is-active" : ""}`} onClick={() => setTab("tools")}>
           Инструменты
         </button>
+        <button className={`admin-page__tab${tab === "notifications" ? " is-active" : ""}`} onClick={() => setTab("notifications")}>
+          Уведомления
+        </button>
       </div>
 
       {tab === "listings" && (
@@ -273,7 +304,29 @@ function AdminPage({ onClose }: { onClose: () => void }) {
         />
       )}
 
-      {loading ? (
+      {tab === "notifications" ? (
+        <div className="admin-page__list">
+          <div className="tool-form">
+            <input
+              className="tool-form__input"
+              placeholder="Заголовок уведомления"
+              value={notifTitle}
+              onChange={(e) => setNotifTitle(e.target.value)}
+            />
+            <textarea
+              className="tool-form__input tool-form__textarea"
+              placeholder="Текст (необязательно)"
+              value={notifBody}
+              onChange={(e) => setNotifBody(e.target.value)}
+              rows={3}
+            />
+            <button className="tool-form__add" onClick={handleSendNotification} disabled={busyId === "notif" || !notifTitle.trim()}>
+              {busyId === "notif" ? "Отправляем…" : "Отправить всем пользователям"}
+            </button>
+            {notifSent && <p className="notif-sent-hint">Отправлено {notifCount} пользователям</p>}
+          </div>
+        </div>
+      ) : loading ? (
         <p className="admin-page__hint">Загрузка…</p>
       ) : tab === "listings" ? (
         filteredListings.length === 0 ? (
@@ -520,6 +573,7 @@ function AdminPage({ onClose }: { onClose: () => void }) {
           color: var(--color-text-primary);
           font-size: 13.5px;
         }
+        .tool-form__textarea { resize: none; font-family: inherit; }
         .tool-form__row { display: flex; gap: var(--space-2); }
         .tool-form__add {
           padding: 9px 12px;
@@ -549,6 +603,7 @@ function AdminPage({ onClose }: { onClose: () => void }) {
           font-size: 11px;
           font-weight: 600;
         }
+        .notif-sent-hint { font-size: 12.5px; color: var(--color-success); text-align: center; }
       `}</style>
     </div>
   );
