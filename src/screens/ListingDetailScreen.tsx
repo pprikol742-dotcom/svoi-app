@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -52,7 +53,7 @@ function ReportModal({
     else setSent(true);
   };
 
-  return (
+  return createPortal(
     <div className="report-modal-backdrop" onClick={onClose}>
       <div className="report-modal" onClick={(e) => e.stopPropagation()}>
         {sent ? (
@@ -145,7 +146,8 @@ function ReportModal({
         .report-modal__actions .btn-primary,
         .report-modal__actions .btn-secondary { flex: 1; width: auto; }
       `}</style>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -222,7 +224,7 @@ function ReviewModal({
     onClose();
   };
 
-  return (
+  return createPortal(
     <div className="report-modal-backdrop" onClick={onClose}>
       <div className="report-modal" onClick={(e) => e.stopPropagation()}>
         <h3>Оставить отзыв</h3>
@@ -267,7 +269,8 @@ function ReviewModal({
         .review-modal__stars button { color: var(--color-accent); }
         .review-modal__stars svg { width: 34px; height: 34px; }
       `}</style>
-    </div>
+    </div>,
+    document.body
   );
 }
 
