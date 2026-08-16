@@ -140,6 +140,78 @@ function NotificationsPage({
   );
 }
 
+function PhoneReminderPage({
+  onGoToProfile,
+  onClose,
+}: {
+  onGoToProfile: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="phone-reminder">
+      <div className="phone-reminder__card">
+        <div className="phone-reminder__icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M6.6 10.8a15.9 15.9 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25c1.1.36 2.3.56 3.5.56a1 1 0 0 1 1 1V20a1 1 0 0 1-1 1C10.5 21 3 13.5 3 4.5a1 1 0 0 1 1-1H6.5a1 1 0 0 1 1 1c0 1.2.2 2.4.56 3.5a1 1 0 0 1-.25 1L6.6 10.8Z" />
+          </svg>
+        </div>
+        <h2>Добавьте номер телефона</h2>
+        <p>Чтобы размещать объявления, укажите номер телефона в профиле — так покупатели смогут с вами связаться.</p>
+        <button className="btn-primary" onClick={onGoToProfile}>
+          Перейти в профиль
+        </button>
+        <button className="phone-reminder__skip" onClick={onClose}>
+          Позже
+        </button>
+      </div>
+      <style>{`
+        .phone-reminder {
+          position: fixed;
+          inset: 0;
+          z-index: 150;
+          background: rgba(0, 0, 0, 0.55);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: var(--space-4);
+        }
+        .phone-reminder__card {
+          width: 100%;
+          max-width: 360px;
+          background: var(--color-bg);
+          border-radius: var(--radius-lg);
+          padding: var(--space-5) var(--space-4);
+          text-align: center;
+        }
+        .phone-reminder__icon {
+          width: 56px;
+          height: 56px;
+          margin: 0 auto var(--space-3);
+          border-radius: 50%;
+          background: var(--color-accent-soft);
+          color: var(--color-primary);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .phone-reminder__icon svg { width: 26px; height: 26px; }
+        .phone-reminder__card h2 { font-size: 17px; font-weight: 700; margin-bottom: var(--space-2); }
+        .phone-reminder__card p {
+          font-size: 13.5px;
+          color: var(--color-text-secondary);
+          line-height: 1.5;
+          margin-bottom: var(--space-4);
+        }
+        .phone-reminder__skip {
+          margin-top: var(--space-2);
+          font-size: 13px;
+          color: var(--color-text-secondary);
+        }
+      `}</style>
+    </div>
+  );
+}
+
 export function FeedScreen() {
   const {
     categories,
@@ -154,10 +226,13 @@ export function FeedScreen() {
     setFilters,
     toggleFavorite,
   } = useListingsStore();
-  const { userId } = useAuthStore();
+  const { userId, profile } = useAuthStore();
+  const navigate = useNavigate();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [showPhoneReminder, setShowPhoneReminder] = useState(false);
+  const [phoneReminderDismissed, setPhoneReminderDismissed] = useState(false);
 
   useEffect(() => {
     Promise.all([loadCategories(), loadSubcategories()]).then(loadFeed);
@@ -178,6 +253,12 @@ export function FeedScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
+  useEffect(() => {
+    if (userId && profile && !profile.phone && !phoneReminderDismissed) {
+      setShowPhoneReminder(true);
+    }
+  }, [userId, profile, phoneReminderDismissed]);
+
   const activeCategory = categories.find((c) => c.slug === filters.categorySlug);
   const activeSubcategory = subcategories.find((s) => s.id === filters.subcategoryId);
   const filterLabel = activeSubcategory
@@ -186,6 +267,20 @@ export function FeedScreen() {
 
   return (
     <div className="screen">
+      {showPhoneReminder && (
+        <PhoneReminderPage
+          onGoToProfile={() => {
+            setShowPhoneReminder(false);
+            setPhoneReminderDismissed(true);
+            navigate("/profile/edit");
+          }}
+          onClose={() => {
+            setShowPhoneReminder(false);
+            setPhoneReminderDismissed(true);
+          }}
+        />
+      )}
+
       {showNotifications && userId && (
         <NotificationsPage
           userId={userId}

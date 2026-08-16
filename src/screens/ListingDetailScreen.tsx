@@ -271,6 +271,8 @@ function ReviewModal({
   );
 }
 
+type ActiveModal = "none" | "report" | "review";
+
 export function ListingDetailScreen() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -283,8 +285,7 @@ export function ListingDetailScreen() {
   const [contacting, setContacting] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [showReport, setShowReport] = useState(false);
-  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [activeModal, setActiveModal] = useState<ActiveModal>("none");
   const [reviews, setReviews] = useState<ReviewRow[]>([]);
   const touchStartX = useRef<number | null>(null);
   const touchDeltaX = useRef(0);
@@ -384,7 +385,12 @@ export function ListingDetailScreen() {
 
   const handleReportClick = () => {
     if (!userId) return navigate("/auth");
-    setShowReport(true);
+    setActiveModal("report");
+  };
+
+  const handleReviewClick = () => {
+    if (!userId) return navigate("/auth");
+    setActiveModal("review");
   };
 
   const handleDeleteMyReview = async () => {
@@ -397,16 +403,16 @@ export function ListingDetailScreen() {
     <div className="screen screen--no-tab-padding">
       <TopBar title={listing.subcategory?.title ?? listing.category?.title ?? "Объявление"} onBack />
 
-      {showReport && userId && (
-        <ReportModal listingId={listing.id} userId={userId} onClose={() => setShowReport(false)} />
+      {activeModal === "report" && userId && (
+        <ReportModal listingId={listing.id} userId={userId} onClose={() => setActiveModal("none")} />
       )}
 
-      {showReviewModal && userId && (
+      {activeModal === "review" && userId && (
         <ReviewModal
           listingId={listing.id}
           reviewerId={userId}
           reviewedId={listing.owner_id}
-          onClose={() => setShowReviewModal(false)}
+          onClose={() => setActiveModal("none")}
           onSubmitted={(review) => setReviews((prev) => [review, ...prev])}
         />
       )}
@@ -514,7 +520,7 @@ export function ListingDetailScreen() {
           <div className="reviews-section__header">
             <h3>Отзывы{reviews.length > 0 ? ` (${reviews.length})` : ""}</h3>
             {!isOwnListing && !myReview && (
-              <button className="reviews-section__add" onClick={() => (userId ? setShowReviewModal(true) : navigate("/auth"))}>
+              <button className="reviews-section__add" onClick={handleReviewClick}>
                 Оставить отзыв
               </button>
             )}

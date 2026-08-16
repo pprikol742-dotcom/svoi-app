@@ -3,7 +3,7 @@ import { TopBar } from "@/components/TopBar";
 
 type Tab = "privacy" | "consent" | "terms";
 
-const OPERATOR_EMAIL = "pprikol742@gmail.com";
+const OPERATOR_EMAIL = "sergei.shvachyov@yandex.com";
 const EFFECTIVE_DATE = "18.07.2026";
 
 export function LegalScreen({ initialTab = "privacy" as Tab }: { initialTab?: Tab }) {
