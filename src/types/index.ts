@@ -31,6 +31,7 @@ export interface Profile {
   rating: number | null;
   listings_count: number | null;
   is_admin: boolean;
+  pro_until: string | null;
 }
 
 export type ListingStatus = "active" | "reserved" | "sold" | "pending_review" | "rejected" | "expired";
@@ -52,6 +53,7 @@ export interface Listing {
   contact_phone: string | null;
   created_at: string;
   updated_at: string;
+  boosted_at: string | null;
 }
 
 export interface ListingWithOwner extends Listing {

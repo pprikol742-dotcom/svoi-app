@@ -4,7 +4,255 @@ import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useThemeStore } from "@/store/useThemeStore";
 import { useListingsStore } from "@/store/useListingsStore";
+import { Confetti } from "@/components/Confetti";
 import type { Listing } from "@/types";
+
+const PRO_SEEN_KEY = "svoi_pro_seen_until";
+
+function isProActive(proUntil: string | null | undefined) {
+  return !!proUntil && new Date(proUntil) > new Date();
+}
+
+function isProForever(proUntil: string | null | undefined) {
+  return !!proUntil && new Date(proUntil).getFullYear() >= 2090;
+}
+
+interface PaymentMethod {
+  label: string;
+  value: string;
+}
+
+const PAYMENT_METHODS: PaymentMethod[] = [
+  { label: "Т-Банк — перевод с карты на карту", value: "2200 7021 9550 3052" },
+  { label: "ЮMoney — кошелёк", value: "4100118834539758" },
+  { label: "Ozon — перевод с карты на карту", value: "2204 3211 3866 0659" },
+];
+
+function copyToClipboard(text: string) {
+  navigator.clipboard?.writeText(text).catch(() => {});
+}
+
+function ProPage({
+  userId,
+  proUntil,
+  onClose,
+}: {
+  userId: string;
+  proUntil: string | null;
+  onClose: () => void;
+}) {
+  const active = isProActive(proUntil);
+  const forever = isProForever(proUntil);
+
+  return (
+    <div className="pro-page">
+      <div className="pro-page__header">
+        <button className="pro-page__back" onClick={onClose} aria-label="Назад">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="m15 18-6-6 6-6" />
+          </svg>
+        </button>
+        <h1>Свои Про</h1>
+      </div>
+
+      <div className="pro-page__content">
+        <div className={`pro-status${active ? " pro-status--active" : ""}`}>
+          <span className="pro-status__badge">PRO</span>
+          <p>
+            {active
+              ? forever
+                ? "Активирован навсегда 🎉"
+                : `Активен до ${new Date(proUntil!).toLocaleDateString("ru-RU")}`
+              : "Пока не активирован"}
+          </p>
+        </div>
+
+        <div className="pro-benefits">
+          <h3>Что даёт Про</h3>
+          <div className="pro-benefit">
+            <span className="pro-benefit__icon">📦</span>
+            <span>Публикация без ограничения в 10 объявлений в месяц</span>
+          </div>
+          <div className="pro-benefit">
+            <span className="pro-benefit__icon">💬</span>
+            <span>Помощь чат-бота в приложении (скоро)</span>
+          </div>
+          <div className="pro-benefit">
+            <span className="pro-benefit__icon">⬆️</span>
+            <span>Поднятие своих объявлений в топ ленты — до 5 раз в месяц</span>
+          </div>
+        </div>
+
+        <div className="pro-price">
+          <span className="pro-price__amount">199 ₽</span>
+          <span className="pro-price__period"> / месяц</span>
+        </div>
+
+        <div className="pro-promo">
+          🎁 Первым 300 зарегистрировавшимся — Про навсегда в подарок. Просто оформите оплату как обычно, и это будет учтено.
+        </div>
+
+        <div className="pro-your-id">
+          <p>Ваш ID — укажите его в комментарии к переводу:</p>
+          <div className="pro-your-id__row">
+            <code>{userId}</code>
+            <button onClick={() => copyToClipboard(userId)}>Копировать</button>
+          </div>
+        </div>
+
+        <div className="pro-payment-methods">
+          <h3>Способы оплаты</h3>
+          {PAYMENT_METHODS.map((m) => (
+            <div key={m.value} className="pro-payment-method">
+              <div>
+                <p className="pro-payment-method__label">{m.label}</p>
+                <p className="pro-payment-method__value">{m.value}</p>
+              </div>
+              <button onClick={() => copyToClipboard(m.value)}>Копировать</button>
+            </div>
+          ))}
+        </div>
+
+        <p className="pro-note">
+          После перевода статус активируется вручную, обычно в течение суток. Если дольше — напишите в поддержку
+          через раздел «Правовая информация».
+        </p>
+      </div>
+
+      <style>{`
+        .pro-page {
+          position: fixed;
+          inset: 0;
+          z-index: 100;
+          background: var(--color-bg);
+          display: flex;
+          flex-direction: column;
+        }
+        .pro-page__header {
+          display: flex;
+          align-items: center;
+          gap: var(--space-3);
+          padding: calc(var(--space-3) + var(--safe-top)) var(--space-4) var(--space-3);
+          border-bottom: 1px solid var(--color-border);
+        }
+        .pro-page__back {
+          width: 36px; height: 36px;
+          display: flex; align-items: center; justify-content: center;
+          flex-shrink: 0;
+          color: var(--color-text-primary);
+        }
+        .pro-page__back svg { width: 22px; height: 22px; }
+        .pro-page__header h1 { font-size: 18px; font-weight: 700; }
+        .pro-page__content { padding: var(--space-4); overflow-y: auto; padding-bottom: var(--space-6); }
+        .pro-status {
+          display: flex;
+          align-items: center;
+          gap: var(--space-3);
+          padding: var(--space-3);
+          background: var(--color-surface);
+          border-radius: var(--radius-md);
+          box-shadow: var(--shadow-card);
+          margin-bottom: var(--space-4);
+        }
+        .pro-status--active { border: 1.5px solid var(--color-accent); }
+        .pro-status__badge {
+          background: var(--color-accent);
+          color: var(--color-text-onaccent);
+          font-family: var(--font-display);
+          font-weight: 800;
+          font-size: 12px;
+          padding: 4px 10px;
+          border-radius: var(--radius-pill);
+          flex-shrink: 0;
+        }
+        .pro-status p { font-size: 13.5px; font-weight: 600; }
+        .pro-benefits { margin-bottom: var(--space-4); }
+        .pro-benefits h3 { font-size: 14px; margin-bottom: var(--space-2); }
+        .pro-benefit {
+          display: flex;
+          align-items: flex-start;
+          gap: var(--space-2);
+          padding: var(--space-2) 0;
+          font-size: 14px;
+          line-height: 1.4;
+        }
+        .pro-benefit__icon { flex-shrink: 0; }
+        .pro-price {
+          text-align: center;
+          margin-bottom: var(--space-3);
+        }
+        .pro-price__amount { font-size: 30px; font-weight: 800; font-family: var(--font-display); color: var(--color-primary); }
+        .pro-price__period { font-size: 14px; color: var(--color-text-secondary); }
+        .pro-promo {
+          background: var(--color-accent-soft);
+          border-radius: var(--radius-md);
+          padding: var(--space-3);
+          font-size: 13px;
+          line-height: 1.5;
+          margin-bottom: var(--space-4);
+          text-align: center;
+        }
+        .pro-your-id {
+          background: var(--color-surface);
+          border-radius: var(--radius-md);
+          padding: var(--space-3);
+          margin-bottom: var(--space-4);
+        }
+        .pro-your-id p { font-size: 12.5px; color: var(--color-text-secondary); margin-bottom: var(--space-2); }
+        .pro-your-id__row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: var(--space-2);
+        }
+        .pro-your-id__row code {
+          font-size: 11.5px;
+          word-break: break-all;
+          color: var(--color-text-primary);
+        }
+        .pro-your-id__row button {
+          flex-shrink: 0;
+          padding: 6px 12px;
+          border-radius: var(--radius-pill);
+          background: var(--color-primary);
+          color: var(--color-text-onprimary);
+          font-size: 11.5px;
+          font-weight: 600;
+        }
+        .pro-payment-methods h3 { font-size: 14px; margin-bottom: var(--space-2); }
+        .pro-payment-method {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: var(--space-2);
+          padding: var(--space-3);
+          background: var(--color-surface);
+          border-radius: var(--radius-md);
+          box-shadow: var(--shadow-card);
+          margin-bottom: var(--space-2);
+        }
+        .pro-payment-method__label { font-size: 12.5px; color: var(--color-text-secondary); }
+        .pro-payment-method__value { font-size: 14px; font-weight: 700; margin-top: 2px; }
+        .pro-payment-method button {
+          flex-shrink: 0;
+          padding: 7px 12px;
+          border-radius: var(--radius-pill);
+          border: 1.5px solid var(--color-border);
+          color: var(--color-text-secondary);
+          font-size: 11.5px;
+          font-weight: 600;
+        }
+        .pro-note {
+          font-size: 12px;
+          color: var(--color-text-secondary);
+          line-height: 1.5;
+          margin-top: var(--space-4);
+          text-align: center;
+        }
+      `}</style>
+    </div>
+  );
+}
 
 interface PartnerTool {
   id: string;
@@ -110,7 +358,13 @@ interface AdminReportRow {
   reporter: { display_name: string } | null;
 }
 
-type AdminTab = "reports" | "listings" | "tools" | "notifications";
+interface ProLookupResult {
+  id: string;
+  display_name: string;
+  pro_until: string | null;
+}
+
+type AdminTab = "reports" | "listings" | "tools" | "notifications" | "pro";
 
 function AdminPage({ onClose }: { onClose: () => void }) {
   const [tab, setTab] = useState<AdminTab>("reports");
@@ -129,6 +383,10 @@ function AdminPage({ onClose }: { onClose: () => void }) {
   const [notifBody, setNotifBody] = useState("");
   const [notifSent, setNotifSent] = useState(false);
   const [notifCount, setNotifCount] = useState<number | null>(null);
+  const [proCount, setProCount] = useState<number | null>(null);
+  const [proUserId, setProUserId] = useState("");
+  const [proResult, setProResult] = useState<ProLookupResult | null | undefined>(undefined);
+  const [proSearching, setProSearching] = useState(false);
 
   const loadListings = () => {
     setLoading(true);
@@ -170,10 +428,23 @@ function AdminPage({ onClose }: { onClose: () => void }) {
       });
   };
 
+  const loadProCount = () => {
+    setLoading(true);
+    supabase
+      .from("profiles")
+      .select("id", { count: "exact", head: true })
+      .not("pro_until", "is", null)
+      .then(({ count }) => {
+        setProCount(count ?? 0);
+        setLoading(false);
+      });
+  };
+
   useEffect(() => {
     if (tab === "listings") loadListings();
     else if (tab === "reports") loadReports();
     else if (tab === "tools") loadTools();
+    else if (tab === "pro") loadProCount();
     else setLoading(false);
   }, [tab]);
 
@@ -265,6 +536,43 @@ function AdminPage({ onClose }: { onClose: () => void }) {
     setBusyId(null);
   };
 
+  const handleLookupProUser = async () => {
+    if (!proUserId.trim()) return;
+    setProSearching(true);
+    const { data } = await supabase
+      .from("profiles")
+      .select("id, display_name, pro_until")
+      .eq("id", proUserId.trim())
+      .maybeSingle();
+    setProResult((data as ProLookupResult) ?? null);
+    setProSearching(false);
+  };
+
+  const handleGrantPro = async (forever: boolean) => {
+    if (!proResult) return;
+    setBusyId("grant");
+    const until = forever
+      ? new Date("2099-01-01").toISOString()
+      : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    const { error } = await supabase.from("profiles").update({ pro_until: until }).eq("id", proResult.id);
+    if (!error) {
+      setProResult({ ...proResult, pro_until: until });
+      loadProCount();
+    }
+    setBusyId(null);
+  };
+
+  const handleRevokePro = async () => {
+    if (!proResult) return;
+    setBusyId("revoke");
+    const { error } = await supabase.from("profiles").update({ pro_until: null }).eq("id", proResult.id);
+    if (!error) {
+      setProResult({ ...proResult, pro_until: null });
+      loadProCount();
+    }
+    setBusyId(null);
+  };
+
   const filteredListings = query.trim()
     ? rows.filter((r) => r.title.toLowerCase().includes(query.trim().toLowerCase()))
     : rows;
@@ -292,6 +600,9 @@ function AdminPage({ onClose }: { onClose: () => void }) {
         </button>
         <button className={`admin-page__tab${tab === "notifications" ? " is-active" : ""}`} onClick={() => setTab("notifications")}>
           Уведомления
+        </button>
+        <button className={`admin-page__tab${tab === "pro" ? " is-active" : ""}`} onClick={() => setTab("pro")}>
+          Про
         </button>
       </div>
 
@@ -325,6 +636,51 @@ function AdminPage({ onClose }: { onClose: () => void }) {
             </button>
             {notifSent && <p className="notif-sent-hint">Отправлено {notifCount} пользователям</p>}
           </div>
+        </div>
+      ) : tab === "pro" ? (
+        <div className="admin-page__list">
+          <div className="tool-form">
+            <p className="pro-admin__count">
+              {loading ? "Считаем…" : `Всего Про-аккаунтов: ${proCount}`}
+            </p>
+            <input
+              className="tool-form__input"
+              placeholder="ID пользователя из комментария к переводу"
+              value={proUserId}
+              onChange={(e) => setProUserId(e.target.value)}
+            />
+            <button className="tool-form__add" onClick={handleLookupProUser} disabled={proSearching || !proUserId.trim()}>
+              {proSearching ? "Ищем…" : "Найти"}
+            </button>
+          </div>
+
+          {proResult === null && <p className="admin-page__hint">Пользователь с таким ID не найден</p>}
+
+          {proResult && (
+            <div className="tool-form">
+              <p className="pro-admin__name">{proResult.display_name}</p>
+              <p className="pro-admin__status">
+                {isProActive(proResult.pro_until)
+                  ? isProForever(proResult.pro_until)
+                    ? "Уже Про — навсегда"
+                    : `Уже Про — до ${new Date(proResult.pro_until!).toLocaleDateString("ru-RU")}`
+                  : "Про не активирован"}
+              </p>
+              <div className="tool-form__row">
+                <button className="tool-form__add" onClick={() => handleGrantPro(false)} disabled={busyId === "grant"}>
+                  Выдать на месяц
+                </button>
+                <button className="tool-form__add" onClick={() => handleGrantPro(true)} disabled={busyId === "grant"}>
+                  Навсегда (акция)
+                </button>
+              </div>
+              {isProActive(proResult.pro_until) && (
+                <button className="tool-form__cancel" onClick={handleRevokePro} disabled={busyId === "revoke"}>
+                  Отозвать Про
+                </button>
+              )}
+            </div>
+          )}
         </div>
       ) : loading ? (
         <p className="admin-page__hint">Загрузка…</p>
@@ -584,7 +940,6 @@ function AdminPage({ onClose }: { onClose: () => void }) {
           font-weight: 600;
         }
         .tool-form__cancel {
-          flex: 1;
           padding: 9px 12px;
           border-radius: var(--radius-pill);
           background: var(--color-bg);
@@ -604,6 +959,9 @@ function AdminPage({ onClose }: { onClose: () => void }) {
           font-weight: 600;
         }
         .notif-sent-hint { font-size: 12.5px; color: var(--color-success); text-align: center; }
+        .pro-admin__count { font-size: 13px; font-weight: 700; color: var(--color-primary); }
+        .pro-admin__name { font-size: 14px; font-weight: 700; }
+        .pro-admin__status { font-size: 12.5px; color: var(--color-text-secondary); }
       `}</style>
     </div>
   );
@@ -618,6 +976,8 @@ export function ProfileScreen() {
   const [republishingId, setRepublishingId] = useState<string | null>(null);
   const [showTools, setShowTools] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
+  const [showPro, setShowPro] = useState(false);
+  const [showConfetti, setShowConfetti] = useState(false);
 
   useEffect(() => {
     if (!userId) return;
@@ -628,6 +988,15 @@ export function ProfileScreen() {
       .order("created_at", { ascending: false })
       .then(({ data }) => data && setMyListings(data as Listing[]));
   }, [userId]);
+
+  // Если про-статус только что появился (и мы его ещё не отмечали салютом) — стреляем конфетти один раз.
+  useEffect(() => {
+    if (!profile?.pro_until || !isProActive(profile.pro_until)) return;
+    const seen = localStorage.getItem(PRO_SEEN_KEY);
+    if (seen === profile.pro_until) return;
+    setShowConfetti(true);
+    localStorage.setItem(PRO_SEEN_KEY, profile.pro_until);
+  }, [profile?.pro_until]);
 
   const handleRepublish = async (e: React.MouseEvent, listingId: string) => {
     e.stopPropagation();
@@ -666,8 +1035,12 @@ export function ProfileScreen() {
 
   return (
     <div className="screen">
+      {showConfetti && <Confetti onDone={() => setShowConfetti(false)} />}
       {showTools && <ToolsPage onClose={() => setShowTools(false)} />}
       {showAdmin && <AdminPage onClose={() => setShowAdmin(false)} />}
+      {showPro && userId && (
+        <ProPage userId={userId} proUntil={profile?.pro_until ?? null} onClose={() => setShowPro(false)} />
+      )}
 
       <div className="profile-header">
         <div className="profile-avatar">
@@ -694,6 +1067,13 @@ export function ProfileScreen() {
           <span className="switch__knob" />
         </button>
       </div>
+
+      <button className="pro-toggle" onClick={() => setShowPro(true)}>
+        <span>{isProActive(profile?.pro_until) ? "Свои Про — активен" : "Свои Про — оформить"}</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="m9 6 6 6-6 6" />
+        </svg>
+      </button>
 
       <button className="tools-toggle" onClick={() => setShowTools(true)}>
         <span>Полезные инструменты — рекомендации</span>
@@ -821,6 +1201,23 @@ export function ProfileScreen() {
           transition: transform 0.15s ease;
         }
         .switch.is-on .switch__knob { transform: translateX(18px); }
+        .pro-toggle {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          width: calc(100% - var(--space-4) * 2);
+          margin: 0 var(--space-4) var(--space-2);
+          padding: var(--space-3);
+          background: linear-gradient(135deg, var(--color-accent), #f0c874);
+          color: var(--color-text-onaccent);
+          border-radius: var(--radius-md);
+          box-shadow: var(--shadow-card);
+          font-size: 14.5px;
+          font-weight: 800;
+          font-family: var(--font-display);
+          text-align: left;
+        }
+        .pro-toggle svg { width: 18px; height: 18px; flex-shrink: 0; margin-left: var(--space-2); }
         .tools-toggle {
           display: flex;
           align-items: center;
@@ -828,15 +1225,15 @@ export function ProfileScreen() {
           width: calc(100% - var(--space-4) * 2);
           margin: 0 var(--space-4) var(--space-2);
           padding: var(--space-3);
-          background: var(--color-accent);
-          color: var(--color-text-onaccent);
+          background: var(--color-surface);
+          color: var(--color-text-primary);
           border-radius: var(--radius-md);
           box-shadow: var(--shadow-card);
           font-size: 14.5px;
           font-weight: 700;
           text-align: left;
         }
-        .tools-toggle svg { width: 18px; height: 18px; flex-shrink: 0; margin-left: var(--space-2); }
+        .tools-toggle svg { width: 18px; height: 18px; flex-shrink: 0; margin-left: var(--space-2); color: var(--color-text-secondary); }
         .admin-toggle {
           display: flex;
           align-items: center;
