@@ -1,5 +1,7 @@
 import { create } from "zustand";
-import { supabase } from "@/lib/supabase";
+import { supabase, PHOTOS_BUCKET } from "@/lib/supabase";
+import { resizeImage } from "@/lib/imageResize";
+import { safeId } from "@/lib/id";
 import type { ChatWithParticipants, Message } from "@/types";
 
 const CHAT_SELECT =
@@ -16,6 +18,7 @@ interface ChatState {
   openOrCreateChat: (listingId: string, buyerId: string, sellerId: string) => Promise<string>;
   loadMessages: (chatId: string) => Promise<void>;
   sendMessage: (chatId: string, senderId: string, body: string) => Promise<void>;
+  sendImageMessage: (chatId: string, senderId: string, file: File) => Promise<void>;
   editMessage: (chatId: string, messageId: string, newBody: string) => Promise<void>;
   deleteMessage: (chatId: string, messageId: string) => Promise<void>;
   markChatAsRead: (chatId: string, userId: string) => Promise<void>;
@@ -77,6 +80,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   sendMessage: async (chatId, senderId, body) => {
     await supabase.from("messages").insert({ chat_id: chatId, sender_id: senderId, body });
+    await get().markChatAsRead(chatId, senderId);
+  },
+
+  sendImageMessage: async (chatId, senderId, file) => {
+    const compressed = await resizeImage(file);
+    const path = `${senderId}/chat-${chatId}-${safeId()}-${compressed.name}`;
+    const { error: uploadError } = await supabase.storage.from(PHOTOS_BUCKET).upload(path, compressed);
+    if (uploadError) throw uploadError;
+    const { data } = supabase.storage.from(PHOTOS_BUCKET).getPublicUrl(path);
+    const { error: insertError } = await supabase
+      .from("messages")
+      .insert({ chat_id: chatId, sender_id: senderId, body: "📷 Фото", image_url: data.publicUrl });
+    if (insertError) throw new Error(insertError.message);
     await get().markChatAsRead(chatId, senderId);
   },
 

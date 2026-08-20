@@ -87,6 +87,7 @@ export interface Message {
   created_at: string;
   read_at: string | null;
   edited_at: string | null;
+  image_url: string | null;
 }
 
 export interface Favorite {

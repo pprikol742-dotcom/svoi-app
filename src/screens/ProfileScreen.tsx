@@ -5,9 +5,12 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { useThemeStore } from "@/store/useThemeStore";
 import { useListingsStore } from "@/store/useListingsStore";
 import { Confetti } from "@/components/Confetti";
+import { AdminAIQuotaControls } from "@/components/AdminAIQuotaControls";
 import type { Listing } from "@/types";
 
 const PRO_SEEN_KEY = "svoi_pro_seen_until";
+const OZON_PAY_URL = "https://finance.ozon.ru/apps/sbp/ozonbankpay/01a01625-3fd8-76a4-8ca8-d185171b3f49?attempt=1";
+const SUPPORT_EMAIL = "sergei.shvachyov@yandex.com";
 
 function isProActive(proUntil: string | null | undefined) {
   return !!proUntil && new Date(proUntil) > new Date();
@@ -16,17 +19,6 @@ function isProActive(proUntil: string | null | undefined) {
 function isProForever(proUntil: string | null | undefined) {
   return !!proUntil && new Date(proUntil).getFullYear() >= 2090;
 }
-
-interface PaymentMethod {
-  label: string;
-  value: string;
-}
-
-const PAYMENT_METHODS: PaymentMethod[] = [
-  { label: "Т-Банк — перевод с карты на карту", value: "2200 7021 9550 3052" },
-  { label: "ЮMoney — кошелёк", value: "4100118834539758" },
-  { label: "Ozon — перевод с карты на карту", value: "2204 3211 3866 0659" },
-];
 
 function copyToClipboard(text: string) {
   navigator.clipboard?.writeText(text).catch(() => {});
@@ -43,6 +35,17 @@ function ProPage({
 }) {
   const active = isProActive(proUntil);
   const forever = isProForever(proUntil);
+  const [copied, setCopied] = useState(false);
+
+  const supportMailto = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(
+    "Оплата Свои Про"
+  )}&body=${encodeURIComponent(`Мой ID: ${userId}\nОплатил(а) через Ozon Pay, прошу активировать Про.`)}`;
+
+  const handleCopyId = () => {
+    copyToClipboard(userId);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
 
   return (
     <div className="pro-page">
@@ -92,25 +95,24 @@ function ProPage({
           🎁 Первым 300 зарегистрировавшимся — Про навсегда в подарок. Просто оформите оплату как обычно, и это будет учтено.
         </div>
 
+        <a className="pro-pay-button" href={OZON_PAY_URL} target="_blank" rel="noopener noreferrer">
+          Оплатить через Ozon Pay
+        </a>
+
         <div className="pro-your-id">
-          <p>Ваш ID — укажите его в комментарии к переводу:</p>
+          <p>
+            Ozon Pay не позволяет добавить комментарий к переводу, поэтому после оплаты отправьте ваш ID в поддержку —
+            так Про активируют быстрее:
+          </p>
           <div className="pro-your-id__row">
             <code>{userId}</code>
-            <button onClick={() => copyToClipboard(userId)}>Копировать</button>
+            <button onClick={handleCopyId} className={copied ? "is-copied" : ""}>
+              {copied ? "Скопировано ✓" : "Копировать"}
+            </button>
           </div>
-        </div>
-
-        <div className="pro-payment-methods">
-          <h3>Способы оплаты</h3>
-          {PAYMENT_METHODS.map((m) => (
-            <div key={m.value} className="pro-payment-method">
-              <div>
-                <p className="pro-payment-method__label">{m.label}</p>
-                <p className="pro-payment-method__value">{m.value}</p>
-              </div>
-              <button onClick={() => copyToClipboard(m.value)}>Копировать</button>
-            </div>
-          ))}
+          <a className="pro-your-id__support" href={supportMailto}>
+            Написать в поддержку
+          </a>
         </div>
 
         <p className="pro-note">
@@ -192,13 +194,29 @@ function ProPage({
           margin-bottom: var(--space-4);
           text-align: center;
         }
+        .pro-pay-button {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 100%;
+          padding: var(--space-4);
+          background: var(--color-primary);
+          color: var(--color-text-onprimary);
+          border-radius: var(--radius-md);
+          box-shadow: var(--shadow-card);
+          font-size: 15.5px;
+          font-weight: 800;
+          font-family: var(--font-display);
+          text-align: center;
+          margin-bottom: var(--space-4);
+        }
         .pro-your-id {
           background: var(--color-surface);
           border-radius: var(--radius-md);
           padding: var(--space-3);
           margin-bottom: var(--space-4);
         }
-        .pro-your-id p { font-size: 12.5px; color: var(--color-text-secondary); margin-bottom: var(--space-2); }
+        .pro-your-id p { font-size: 12.5px; color: var(--color-text-secondary); margin-bottom: var(--space-2); line-height: 1.5; }
         .pro-your-id__row {
           display: flex;
           align-items: center;
@@ -218,29 +236,23 @@ function ProPage({
           color: var(--color-text-onprimary);
           font-size: 11.5px;
           font-weight: 600;
+          transition: background 0.2s ease, transform 0.2s ease;
         }
-        .pro-payment-methods h3 { font-size: 14px; margin-bottom: var(--space-2); }
-        .pro-payment-method {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: var(--space-2);
-          padding: var(--space-3);
-          background: var(--color-surface);
-          border-radius: var(--radius-md);
-          box-shadow: var(--shadow-card);
-          margin-bottom: var(--space-2);
+        .pro-your-id__row button.is-copied {
+          background: var(--color-success, #2ecc71);
+          animation: copy-pulse 0.35s ease;
         }
-        .pro-payment-method__label { font-size: 12.5px; color: var(--color-text-secondary); }
-        .pro-payment-method__value { font-size: 14px; font-weight: 700; margin-top: 2px; }
-        .pro-payment-method button {
-          flex-shrink: 0;
-          padding: 7px 12px;
-          border-radius: var(--radius-pill);
-          border: 1.5px solid var(--color-border);
-          color: var(--color-text-secondary);
-          font-size: 11.5px;
+        @keyframes copy-pulse {
+          0% { transform: scale(1); }
+          40% { transform: scale(1.12); }
+          100% { transform: scale(1); }
+        }
+        .pro-your-id__support {
+          display: inline-block;
+          margin-top: var(--space-2);
+          font-size: 12.5px;
           font-weight: 600;
+          color: var(--color-primary);
         }
         .pro-note {
           font-size: 12px;
@@ -679,6 +691,10 @@ function AdminPage({ onClose }: { onClose: () => void }) {
                   Отозвать Про
                 </button>
               )}
+              <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--color-border)" }}>
+                <p className="pro-admin__status" style={{ marginBottom: 8 }}>Токены ИИ-агента</p>
+                <AdminAIQuotaControls userId={proResult.id} />
+              </div>
             </div>
           )}
         </div>
@@ -989,7 +1005,6 @@ export function ProfileScreen() {
       .then(({ data }) => data && setMyListings(data as Listing[]));
   }, [userId]);
 
-  // Если про-статус только что появился (и мы его ещё не отмечали салютом) — стреляем конфетти один раз.
   useEffect(() => {
     if (!profile?.pro_until || !isProActive(profile.pro_until)) return;
     const seen = localStorage.getItem(PRO_SEEN_KEY);

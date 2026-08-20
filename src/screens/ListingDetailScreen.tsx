@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -14,6 +13,60 @@ function formatPrice(listing: ListingWithOwner) {
   if (listing.price == null) return "Цена не указана";
   return `${listing.price.toLocaleString("ru-RU")} ₽`;
 }
+
+function useLockBodyScroll(locked: boolean) {
+  useEffect(() => {
+    if (!locked) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [locked]);
+}
+
+// Надёжно отслеживает реальную видимую высоту экрана (учитывает клавиатуру),
+// потому что CSS position:fixed/100dvh недостаточно надёжны в этом WebView при открытой клавиатуре.
+function useViewportHeight() {
+  const [height, setHeight] = useState<number>(() =>
+    typeof window !== "undefined" ? window.visualViewport?.height ?? window.innerHeight : 0
+  );
+
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const update = () => setHeight(vv.height);
+    update();
+    vv.addEventListener("resize", update);
+    return () => vv.removeEventListener("resize", update);
+  }, []);
+
+  return height;
+}
+
+const MODAL_TEXTAREA_CSS = `
+  .modal-comment {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    padding: var(--space-3);
+    border-radius: var(--radius-md);
+    border: 1.5px solid var(--color-border);
+    background-color: #211d33 !important;
+    color: #f5f3fa !important;
+    -webkit-text-fill-color: #f5f3fa !important;
+    opacity: 1 !important;
+    font-size: 14px;
+    font-family: inherit;
+    resize: none;
+    margin-bottom: var(--space-3);
+  }
+  .modal-comment::placeholder {
+    color: #9a95ad !important;
+    -webkit-text-fill-color: #9a95ad !important;
+    opacity: 1 !important;
+  }
+`;
 
 const REPORT_REASONS = [
   "Мошенничество",
@@ -33,6 +86,8 @@ function ReportModal({
   userId: string;
   onClose: () => void;
 }) {
+  useLockBodyScroll(true);
+  const vh = useViewportHeight();
   const [reason, setReason] = useState(REPORT_REASONS[0]);
   const [comment, setComment] = useState("");
   const [sending, setSending] = useState(false);
@@ -53,8 +108,8 @@ function ReportModal({
     else setSent(true);
   };
 
-  return createPortal(
-    <div className="report-modal-backdrop" onClick={onClose}>
+  return (
+    <div className="report-modal-backdrop" style={{ height: vh }} onClick={onClose}>
       <div className="report-modal" onClick={(e) => e.stopPropagation()}>
         {sent ? (
           <>
@@ -76,7 +131,7 @@ function ReportModal({
               ))}
             </div>
             <textarea
-              className="report-modal__comment"
+              className="modal-comment"
               placeholder="Комментарий (необязательно)"
               value={comment}
               onChange={(e) => setComment(e.target.value)}
@@ -97,12 +152,15 @@ function ReportModal({
       <style>{`
         .report-modal-backdrop {
           position: fixed;
-          inset: 0;
+          left: 0;
+          top: 0;
+          right: 0;
           z-index: 200;
-          background: rgba(0, 0, 0, 0.5);
+          background: rgba(0, 0, 0, 0.6);
           display: flex;
           align-items: flex-end;
           justify-content: center;
+          animation: modal-fade-in 0.22s ease;
         }
         .report-modal {
           width: 100%;
@@ -110,6 +168,18 @@ function ReportModal({
           background: var(--color-bg);
           border-radius: var(--radius-lg) var(--radius-lg) 0 0;
           padding: var(--space-5) var(--space-4) calc(var(--space-5) + var(--safe-bottom));
+          animation: modal-slide-up 0.28s cubic-bezier(0.32, 0.72, 0.35, 1);
+          box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.5);
+          max-height: 92%;
+          overflow-y: auto;
+        }
+        @keyframes modal-fade-in {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes modal-slide-up {
+          from { transform: translateY(100%); }
+          to { transform: translateY(0); }
         }
         .report-modal h3 { font-size: 16.5px; font-weight: 700; margin-bottom: var(--space-3); text-align: center; }
         .report-modal__hint { font-size: 14px; color: var(--color-text-secondary); margin-bottom: var(--space-4); }
@@ -129,25 +199,13 @@ function ReportModal({
           font-size: 14px;
         }
         .report-modal__reason input { accent-color: var(--color-primary); width: 16px; height: 16px; }
-        .report-modal__comment {
-          width: 100%;
-          padding: var(--space-3);
-          border-radius: var(--radius-md);
-          border: 1.5px solid var(--color-border);
-          background: var(--color-surface);
-          color: var(--color-text-primary);
-          font-size: 14px;
-          font-family: inherit;
-          resize: none;
-          margin-bottom: var(--space-3);
-        }
+        ${MODAL_TEXTAREA_CSS}
         .report-modal__error { color: var(--color-danger); font-size: 13px; margin-bottom: var(--space-2); text-align: center; }
         .report-modal__actions { display: flex; gap: var(--space-2); }
         .report-modal__actions .btn-primary,
         .report-modal__actions .btn-secondary { flex: 1; width: auto; }
       `}</style>
-    </div>,
-    document.body
+    </div>
   );
 }
 
@@ -185,6 +243,16 @@ function Stars({ value, size = 16 }: { value: number; size?: number }) {
   );
 }
 
+const REVIEW_EMOJI = ["👍", "😊", "❤️", "🙏", "👌", "😍", "🔥", "💯"];
+
+const REVIEW_TEMPLATES = [
+  "Всё понравилось, рекомендую!",
+  "Быстрая и удобная сделка",
+  "Вежливый продавец",
+  "Товар полностью соответствует описанию",
+  "Есть небольшие замечания",
+];
+
 function ReviewModal({
   listingId,
   reviewerId,
@@ -198,10 +266,21 @@ function ReviewModal({
   onClose: () => void;
   onSubmitted: (review: ReviewRow) => void;
 }) {
+  useLockBodyScroll(true);
+  const vh = useViewportHeight();
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showEmoji, setShowEmoji] = useState(false);
+
+  const insertEmoji = (emoji: string) => {
+    setComment((prev) => prev + emoji);
+  };
+
+  const applyTemplate = (template: string) => {
+    setComment((prev) => (prev.trim() ? `${prev.trim()} ${template}` : template));
+  };
 
   const handleSubmit = async () => {
     setSending(true);
@@ -224,9 +303,9 @@ function ReviewModal({
     onClose();
   };
 
-  return createPortal(
-    <div className="report-modal-backdrop" onClick={onClose}>
-      <div className="report-modal" onClick={(e) => e.stopPropagation()}>
+  return (
+    <div className="review-modal-backdrop" style={{ height: vh }} onClick={onClose}>
+      <div className="review-modal-card" onClick={(e) => e.stopPropagation()}>
         <h3>Оставить отзыв</h3>
         <div className="review-modal__stars">
           {[1, 2, 3, 4, 5].map((n) => (
@@ -242,35 +321,164 @@ function ReviewModal({
             </button>
           ))}
         </div>
-        <textarea
-          className="report-modal__comment"
-          placeholder="Комментарий (необязательно)"
-          value={comment}
-          onChange={(e) => setComment(e.target.value)}
-          rows={3}
-        />
+
+        <div className="review-modal__templates">
+          {REVIEW_TEMPLATES.map((t) => (
+            <button key={t} className="review-modal__template" onClick={() => applyTemplate(t)}>
+              {t}
+            </button>
+          ))}
+        </div>
+
+        <div className="review-modal__comment-wrap">
+          <textarea
+            className="modal-comment review-modal__comment"
+            placeholder="Комментарий (необязательно)"
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+            rows={3}
+          />
+          <button
+            type="button"
+            className="review-modal__emoji-toggle"
+            onClick={() => setShowEmoji((v) => !v)}
+            aria-label="Эмодзи"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <path d="M8 14s1.5 2 4 2 4-2 4-2" />
+              <line x1="9" y1="9" x2="9.01" y2="9" />
+              <line x1="15" y1="9" x2="15.01" y2="9" />
+            </svg>
+          </button>
+        </div>
+
+        {showEmoji && (
+          <div className="review-modal__emoji-panel">
+            {REVIEW_EMOJI.map((e) => (
+              <button key={e} className="review-modal__emoji-btn" onClick={() => insertEmoji(e)}>
+                {e}
+              </button>
+            ))}
+          </div>
+        )}
+
         {error && <p className="report-modal__error">{error}</p>}
         <div className="report-modal__actions">
           <button className="btn-secondary" onClick={onClose} disabled={sending}>
             Отмена
           </button>
           <button className="btn-primary" onClick={handleSubmit} disabled={sending}>
-            {sending ? "Отправка…" : "Отправить"}
+            {sending ? "Оставляем…" : "Оставить"}
           </button>
         </div>
       </div>
       <style>{`
+        .review-modal-backdrop {
+          position: fixed;
+          left: 0;
+          top: 0;
+          right: 0;
+          z-index: 200;
+          background: rgba(0, 0, 0, 0.6);
+          display: flex;
+          align-items: flex-end;
+          justify-content: center;
+          animation: modal-fade-in 0.22s ease;
+        }
+        .review-modal-card {
+          width: 100%;
+          max-width: 480px;
+          background: var(--color-bg);
+          border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+          padding: var(--space-5) var(--space-4) calc(var(--space-5) + var(--safe-bottom));
+          animation: modal-slide-up 0.28s cubic-bezier(0.32, 0.72, 0.35, 1);
+          box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.5);
+          max-height: 92%;
+          overflow-y: auto;
+        }
+        @keyframes modal-fade-in {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes modal-slide-up {
+          from { transform: translateY(100%); }
+          to { transform: translateY(0); }
+        }
+        .review-modal-card h3 { font-size: 16.5px; font-weight: 700; margin-bottom: var(--space-3); text-align: center; }
         .review-modal__stars {
           display: flex;
           gap: 6px;
-          margin-bottom: var(--space-4);
+          margin-bottom: var(--space-3);
           justify-content: center;
         }
         .review-modal__stars button { color: var(--color-accent); }
         .review-modal__stars svg { width: 34px; height: 34px; }
+
+        .review-modal__templates {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px;
+          margin-bottom: var(--space-3);
+        }
+        .review-modal__template {
+          padding: 7px 12px;
+          border-radius: var(--radius-pill);
+          background: var(--color-surface);
+          border: 1px solid var(--color-border);
+          color: var(--color-text-secondary);
+          font-size: 12px;
+        }
+        .review-modal__template:active {
+          background: var(--color-accent-soft);
+          color: var(--color-accent);
+          border-color: var(--color-accent);
+        }
+
+        .review-modal__comment-wrap {
+          position: relative;
+        }
+        .review-modal__comment {
+          padding-right: 44px;
+        }
+        .review-modal__emoji-toggle {
+          position: absolute;
+          right: 10px;
+          bottom: calc(var(--space-3) + 10px);
+          width: 28px; height: 28px;
+          display: flex; align-items: center; justify-content: center;
+          color: var(--color-text-secondary);
+        }
+        .review-modal__emoji-toggle svg { width: 20px; height: 20px; }
+
+        .review-modal__emoji-panel {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 4px;
+          padding: var(--space-2);
+          margin-bottom: var(--space-3);
+          background: var(--color-surface);
+          border-radius: var(--radius-md);
+        }
+        .review-modal__emoji-btn {
+          font-size: 22px;
+          width: 38px;
+          height: 38px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: var(--radius-sm);
+        }
+        .review-modal__emoji-btn:active { background: var(--color-bg); }
+
+        .report-modal__error { color: var(--color-danger); font-size: 13px; margin-bottom: var(--space-2); text-align: center; }
+        .report-modal__actions { display: flex; gap: var(--space-2); }
+        .report-modal__actions .btn-primary,
+        .report-modal__actions .btn-secondary { flex: 1; width: auto; }
+
+        ${MODAL_TEXTAREA_CSS}
       `}</style>
-    </div>,
-    document.body
+    </div>
   );
 }
 
@@ -727,6 +935,11 @@ export function ListingDetailScreen() {
           padding: 6px 12px;
           border-radius: var(--radius-pill);
           border: 1.5px solid var(--color-border);
+          transition: transform 0.15s ease, background 0.15s ease;
+        }
+        .reviews-section__add:active {
+          transform: scale(0.92);
+          background: var(--color-accent-soft);
         }
         .reviews-section__empty { font-size: 13px; color: var(--color-text-secondary); }
         .review-card {
@@ -748,6 +961,7 @@ export function ListingDetailScreen() {
           margin: 0 auto;
           padding: var(--space-3) var(--space-4) calc(var(--space-3) + var(--safe-bottom));
           background: linear-gradient(to top, var(--color-bg) 70%, transparent);
+          z-index: 10;
         }
         .detail-cta__row {
           display: flex;

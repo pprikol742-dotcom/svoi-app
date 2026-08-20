@@ -3,6 +3,7 @@ import { HashRouter, Routes, Route, useLocation } from "react-router-dom";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useListingsStore } from "@/store/useListingsStore";
 import { BottomNav } from "@/components/BottomNav";
+import { AIAgentButton } from "@/components/AIAgentButton";
 import { FeedScreen } from "@/screens/FeedScreen";
 import { SearchScreen } from "@/screens/SearchScreen";
 import { ChatListScreen } from "@/screens/ChatListScreen";
@@ -14,13 +15,12 @@ import { AuthScreen } from "@/screens/AuthScreen";
 import { ListingDetailScreen } from "@/screens/ListingDetailScreen";
 import { CreateListingScreen } from "@/screens/CreateListingScreen";
 import { LegalScreen } from "@/screens/LegalScreen";
-
+import { SecretChatScreen } from "@/screens/SecretChatScreen";
 function Shell() {
   const location = useLocation();
-  const hideNav = ["/listing", "/create", "/auth", "/chats/", "/profile/edit", "/favorites", "/legal"].some(
+  const hideNav = ["/listing", "/create", "/auth", "/chats/", "/profile/edit", "/favorites", "/legal", "/secret-chat"].some(
     (p) => location.pathname.startsWith(p) && location.pathname !== "/chats"
   );
-
   return (
     <div className="app-shell">
       <Routes>
@@ -36,24 +36,22 @@ function Shell() {
         <Route path="/create" element={<CreateListingScreen />} />
         <Route path="/listing/:id/edit" element={<CreateListingScreen />} />
         <Route path="/legal" element={<LegalScreen />} />
+        <Route path="/secret-chat" element={<SecretChatScreen />} />
       </Routes>
       {!hideNav && <BottomNav />}
+      {!hideNav && <AIAgentButton />}
     </div>
   );
 }
-
 export default function App() {
   const { init, userId } = useAuthStore();
   const { loadFavorites } = useListingsStore();
-
   useEffect(() => {
     init();
   }, []);
-
   useEffect(() => {
     if (userId) loadFavorites(userId);
   }, [userId]);
-
   return (
     <HashRouter>
       <Shell />

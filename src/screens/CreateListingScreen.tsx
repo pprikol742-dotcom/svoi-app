@@ -11,6 +11,7 @@ import { CategoryPickerModal } from "@/components/CategoryPickerModal";
 
 const DISTRICTS = ["Артёмовский", "Ленинский", "Каменнобродский", "Жовтневый"];
 const EMPTY_UUID = "00000000-0000-0000-0000-000000000000";
+const MONTHLY_FREE_LIMIT = 10;
 
 interface SimilarListing {
   id: string;
@@ -151,6 +152,24 @@ export function CreateListingScreen() {
     if (!categoryId) return setError("Выберите категорию");
     if (visibleSubcategories.length > 0 && !subcategoryId) return setError("Выберите подкатегорию");
     if (digitsOnly.length < 10) return setError("Введите номер телефона для связи с покупателями");
+
+    const isPro = !!profile?.pro_until && new Date(profile.pro_until) > new Date();
+    if (!isEditMode && !isPro) {
+      const startOfMonth = new Date();
+      startOfMonth.setDate(1);
+      startOfMonth.setHours(0, 0, 0, 0);
+      const { count } = await supabase
+        .from("listings")
+        .select("id", { count: "exact", head: true })
+        .eq("owner_id", userId)
+        .gte("created_at", startOfMonth.toISOString());
+      if ((count ?? 0) >= MONTHLY_FREE_LIMIT) {
+        setError(
+          `Бесплатно доступно до ${MONTHLY_FREE_LIMIT} объявлений в месяц. Оформите «Свои Про» в профиле, чтобы публиковать без ограничений.`
+        );
+        return;
+      }
+    }
 
     setSubmitting(true);
     setError(null);
