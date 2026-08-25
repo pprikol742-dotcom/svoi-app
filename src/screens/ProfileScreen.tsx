@@ -77,8 +77,8 @@ function ProPage({
             <span>Публикация без ограничения в 10 объявлений в месяц</span>
           </div>
           <div className="pro-benefit">
-            <span className="pro-benefit__icon">💬</span>
-            <span>Помощь чат-бота в приложении (скоро)</span>
+            <span className="pro-benefit__icon">🤖</span>
+            <span>Полноценный ИИ-помощник в приложении — составит объявление, определит товар по фото и подскажет цену</span>
           </div>
           <div className="pro-benefit">
             <span className="pro-benefit__icon">⬆️</span>
@@ -96,6 +96,10 @@ function ProPage({
         </div>
 
         <a className="pro-pay-button" href={OZON_PAY_URL} target="_blank" rel="noopener noreferrer">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="2" y="5" width="20" height="14" rx="2.5" />
+            <path d="M2 10h20" />
+          </svg>
           Оплатить через Ozon Pay
         </a>
 
@@ -156,7 +160,10 @@ function ProPage({
           box-shadow: var(--shadow-card);
           margin-bottom: var(--space-4);
         }
-        .pro-status--active { border: 1.5px solid var(--color-accent); }
+        .pro-status--active {
+          border: 1.5px solid var(--color-accent);
+          box-shadow: 0 0 0 3px var(--color-accent-soft);
+        }
         .pro-status__badge {
           background: var(--color-accent);
           color: var(--color-text-onaccent);
@@ -178,7 +185,17 @@ function ProPage({
           font-size: 14px;
           line-height: 1.4;
         }
-        .pro-benefit__icon { flex-shrink: 0; }
+        .pro-benefit__icon {
+          flex-shrink: 0;
+          width: 30px;
+          height: 30px;
+          border-radius: 50%;
+          background: var(--color-surface);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 15px;
+        }
         .pro-price {
           text-align: center;
           margin-bottom: var(--space-3);
@@ -198,17 +215,37 @@ function ProPage({
           display: flex;
           align-items: center;
           justify-content: center;
+          gap: 8px;
           width: 100%;
           padding: var(--space-4);
-          background: var(--color-primary);
-          color: var(--color-text-onprimary);
+          background: linear-gradient(135deg, #2f7bff 0%, #1e5fe0 55%, #7c3aed 100%);
+          background-size: 200% 200%;
+          animation: pay-shimmer 4s ease-in-out infinite;
+          color: #fff;
           border-radius: var(--radius-md);
-          box-shadow: var(--shadow-card);
+          box-shadow: 0 8px 24px rgba(47, 123, 255, 0.35);
           font-size: 15.5px;
           font-weight: 800;
           font-family: var(--font-display);
           text-align: center;
           margin-bottom: var(--space-4);
+          transition: transform 0.15s ease;
+        }
+        .pro-pay-button:active {
+          transform: scale(0.97);
+        }
+        .pro-pay-button svg {
+          width: 20px;
+          height: 20px;
+          flex-shrink: 0;
+        }
+        @keyframes pay-shimmer {
+          0% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+          100% { background-position: 0% 50%; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .pro-pay-button { animation: none; }
         }
         .pro-your-id {
           background: var(--color-surface);

@@ -12,6 +12,7 @@
     "cap:open": "npx cap open android"
   },
   "dependencies": {
+    "@capacitor-community/speech-recognition": "^6.0.1",
     "@capacitor/android": "^6.1.2",
     "@capacitor/app": "^6.0.1",
     "@capacitor/camera": "^6.1.3",
