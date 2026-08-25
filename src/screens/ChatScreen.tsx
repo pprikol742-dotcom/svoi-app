@@ -15,6 +15,11 @@ function isProActive(proUntil: string | null | undefined) {
   return !!proUntil && new Date(proUntil) > new Date();
 }
 
+function formatMessageTime(iso: string) {
+  const d = new Date(iso);
+  return d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+}
+
 export function ChatScreen() {
   const { chatId } = useParams();
   const { userId, profile } = useAuthStore();
@@ -159,34 +164,40 @@ export function ChatScreen() {
           return (
             <div key={m.id} className="bubble-wrap">
               {isImage ? (
-                <div className={`bubble bubble--image${isMine ? " is-mine" : ""}`}>
-                  <img
-                    src={m.image_url!}
-                    alt=""
-                    onClick={() => setLightboxUrl(m.image_url!)}
-                  />
-                  {deletable && (
-                    <button
-                      className="bubble-image-delete"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDelete(m.id);
-                      }}
-                      aria-label="Удалить фото"
-                    >
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M18 6 6 18M6 6l12 12" />
-                      </svg>
-                    </button>
-                  )}
+                <div className="bubble-wrap-inner">
+                  <div className={`bubble bubble--image${isMine ? " is-mine" : ""}`}>
+                    <img
+                      src={m.image_url!}
+                      alt=""
+                      onClick={() => setLightboxUrl(m.image_url!)}
+                    />
+                    {deletable && (
+                      <button
+                        className="bubble-image-delete"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(m.id);
+                        }}
+                        aria-label="Удалить фото"
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M18 6 6 18M6 6l12 12" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+                  <span className={`message-time${isMine ? " is-mine" : ""}`}>{formatMessageTime(m.created_at)}</span>
                 </div>
               ) : (
-                <div
-                  className={`bubble${isMine ? " is-mine" : ""}`}
-                  onClick={() => editable && setActionsForId(actionsForId === m.id ? null : m.id)}
-                >
-                  {m.body}
-                  {m.edited_at && <span className="edited-label"> · изменено</span>}
+                <div className="bubble-wrap-inner">
+                  <div
+                    className={`bubble${isMine ? " is-mine" : ""}`}
+                    onClick={() => editable && setActionsForId(actionsForId === m.id ? null : m.id)}
+                  >
+                    {m.body}
+                    {m.edited_at && <span className="edited-label"> · изменено</span>}
+                  </div>
+                  <span className={`message-time${isMine ? " is-mine" : ""}`}>{formatMessageTime(m.created_at)}</span>
                 </div>
               )}
               {actionsForId === m.id && (
@@ -292,6 +303,17 @@ export function ChatScreen() {
           gap: var(--space-2);
         }
         .bubble-wrap { display: flex; flex-direction: column; }
+        .bubble-wrap-inner { display: flex; flex-direction: column; }
+        .message-time {
+          font-size: 10.5px;
+          color: var(--color-text-secondary);
+          opacity: 0.7;
+          margin-top: 2px;
+          align-self: flex-start;
+        }
+        .message-time.is-mine {
+          align-self: flex-end;
+        }
         .bubble {
           max-width: 75%;
           padding: 10px 14px;

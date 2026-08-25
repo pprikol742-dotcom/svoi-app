@@ -3,7 +3,6 @@ import { HashRouter, Routes, Route, useLocation } from "react-router-dom";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useListingsStore } from "@/store/useListingsStore";
 import { BottomNav } from "@/components/BottomNav";
-import { AIAgentButton } from "@/components/AIAgentButton";
 import { FeedScreen } from "@/screens/FeedScreen";
 import { SearchScreen } from "@/screens/SearchScreen";
 import { ChatListScreen } from "@/screens/ChatListScreen";
@@ -39,7 +38,6 @@ function Shell() {
         <Route path="/secret-chat" element={<SecretChatScreen />} />
       </Routes>
       {!hideNav && <BottomNav />}
-      {!hideNav && <AIAgentButton />}
     </div>
   );
 }
