@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 import { SpeechRecognition } from "@capacitor-community/speech-recognition";
 import { useSecretChatStore } from "@/store/useSecretChatStore";
+import svoyakAvatarUrl from "@/assets/svoyak-avatar.png";
 
 const SUGGESTIONS = [
   "Помоги составить объявление",
@@ -138,9 +139,9 @@ export function SecretChatScreen() {
       <div className="secret-header">
         <button onClick={() => navigate(-1)} className="secret-icon-btn">←</button>
         <div className="secret-title">
-          <span className="secret-avatar">🤖</span>
+          <span className="secret-avatar"><img src={svoyakAvatarUrl} alt="Свояк" /></span>
           <div>
-            <div className="secret-name">DeepSeek</div>
+            <div className="secret-name">Свояк</div>
             <div className="secret-status">{isThinking ? "печатает…" : "на связи"}</div>
           </div>
         </div>
@@ -338,7 +339,8 @@ export function SecretChatScreen() {
         .secret-header { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--color-border); }
         .secret-icon-btn { width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--color-surface); flex-shrink: 0; }
         .secret-title { display: flex; align-items: center; gap: 10px; flex: 1; }
-        .secret-avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--color-accent-soft); display: flex; align-items: center; justify-content: center; font-size: 18px; }
+        .secret-avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--color-accent-soft); display: flex; align-items: center; justify-content: center; overflow: hidden; }
+        .secret-avatar img { width: 100%; height: 100%; object-fit: contain; padding: 3px; }
         .secret-name { font-weight: 700; font-size: 15px; }
         .secret-status { font-size: 12px; color: var(--color-text-secondary); }
 

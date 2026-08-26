@@ -4,6 +4,7 @@ import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useChatStore, canEditMessage } from "@/store/useChatStore";
 import { TopBar } from "@/components/TopBar";
+import chatPatternUrl from "@/assets/chat-pattern.png";
 
 const EMOJI_LIST = [
   "😀", "😂", "😍", "👍", "👎", "🙏", "🔥", "💯",
@@ -18,6 +19,38 @@ function isProActive(proUntil: string | null | undefined) {
 function formatMessageTime(iso: string) {
   const d = new Date(iso);
   return d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+}
+
+function isSameDay(a: Date, b: Date) {
+  return a.toDateString() === b.toDateString();
+}
+
+function formatDateSeparator(iso: string) {
+  const d = new Date(iso);
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
+  if (isSameDay(d, today)) return "Сегодня";
+  if (isSameDay(d, yesterday)) return "Вчера";
+  const sameYear = d.getFullYear() === today.getFullYear();
+  return d.toLocaleDateString("ru-RU", sameYear ? { day: "numeric", month: "long" } : { day: "numeric", month: "long", year: "numeric" });
+}
+
+function SingleCheck() {
+  return (
+    <svg viewBox="0 0 16 12" width="14" height="11" fill="none">
+      <path d="M1 6.5 5 10.5 15 1" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function DoubleCheck({ read }: { read: boolean }) {
+  return (
+    <svg viewBox="0 0 20 12" width="17" height="11" fill="none">
+      <path d="M1 6.5 5 10.5 12 3" stroke={read ? "#5ec2ff" : "currentColor"} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M7 6.5 11 10.5 19 1" stroke={read ? "#5ec2ff" : "currentColor"} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
 }
 
 export function ChatScreen() {
@@ -50,6 +83,8 @@ export function ChatScreen() {
   const messages = chatId ? messagesByChat[chatId] ?? [] : [];
   const meta = chatId ? chatMeta[chatId] : undefined;
   const other = meta ? (meta.buyer_id === userId ? meta.seller : meta.buyer) : undefined;
+  const isBuyer = meta?.buyer_id === userId;
+  const otherLastReadAt = meta ? (isBuyer ? meta.seller_last_read_at : meta.buyer_last_read_at) : null;
 
   useEffect(() => {
     if (!chatId) return;
@@ -155,22 +190,36 @@ export function ChatScreen() {
   return (
     <div className="screen screen--no-tab-padding chat-screen">
       <TopBar title={other?.display_name ?? "Диалог"} onBack />
-      <div className="messages">
-        {messages.map((m) => {
+      <div className="messages" style={{ backgroundImage: `url(${chatPatternUrl})` }}>
+        {messages.map((m, idx) => {
           const isMine = m.sender_id === userId;
           const isImage = !!m.image_url;
           const editable = isMine && !isImage && canEditMessage(m);
           const deletable = isMine;
+          const isRead = isMine && !!otherLastReadAt && new Date(otherLastReadAt) >= new Date(m.created_at);
+
+          const prev = messages[idx - 1];
+          const showDateSeparator = !prev || !isSameDay(new Date(prev.created_at), new Date(m.created_at));
+
           return (
-            <div key={m.id} className="bubble-wrap">
-              {isImage ? (
-                <div className="bubble-wrap-inner">
+            <div key={m.id}>
+              {showDateSeparator && (
+                <div className="date-separator">
+                  <span>{formatDateSeparator(m.created_at)}</span>
+                </div>
+              )}
+              <div className="bubble-wrap">
+                {isImage ? (
                   <div className={`bubble bubble--image${isMine ? " is-mine" : ""}`}>
                     <img
                       src={m.image_url!}
                       alt=""
                       onClick={() => setLightboxUrl(m.image_url!)}
                     />
+                    <span className="bubble__photo-meta">
+                      {formatMessageTime(m.created_at)}
+                      {isMine && (isRead ? <DoubleCheck read /> : <SingleCheck />)}
+                    </span>
                     {deletable && (
                       <button
                         className="bubble-image-delete"
@@ -186,26 +235,28 @@ export function ChatScreen() {
                       </button>
                     )}
                   </div>
-                  <span className={`message-time${isMine ? " is-mine" : ""}`}>{formatMessageTime(m.created_at)}</span>
-                </div>
-              ) : (
-                <div className="bubble-wrap-inner">
+                ) : (
                   <div
                     className={`bubble${isMine ? " is-mine" : ""}`}
                     onClick={() => editable && setActionsForId(actionsForId === m.id ? null : m.id)}
                   >
-                    {m.body}
-                    {m.edited_at && <span className="edited-label"> · изменено</span>}
+                    <span className="bubble__text">
+                      {m.body}
+                      {m.edited_at && <span className="edited-label"> · изменено</span>}
+                    </span>
+                    <span className="bubble__meta">
+                      {formatMessageTime(m.created_at)}
+                      {isMine && (isRead ? <DoubleCheck read /> : <SingleCheck />)}
+                    </span>
                   </div>
-                  <span className={`message-time${isMine ? " is-mine" : ""}`}>{formatMessageTime(m.created_at)}</span>
-                </div>
-              )}
-              {actionsForId === m.id && (
-                <div className="bubble-actions">
-                  {editable && <button onClick={() => startEdit(m.id, m.body)}>Изменить</button>}
-                  <button onClick={() => handleDelete(m.id)} className="danger">Удалить</button>
-                </div>
-              )}
+                )}
+                {actionsForId === m.id && (
+                  <div className="bubble-actions">
+                    {editable && <button onClick={() => startEdit(m.id, m.body)}>Изменить</button>}
+                    <button onClick={() => handleDelete(m.id)} className="danger">Удалить</button>
+                  </div>
+                )}
+              </div>
             </div>
           );
         })}
@@ -300,36 +351,78 @@ export function ChatScreen() {
           padding: var(--space-4);
           display: flex;
           flex-direction: column;
-          gap: var(--space-2);
+          gap: 6px;
+          background-color: var(--color-bg);
+          background-repeat: repeat;
+          background-size: 360px 200px;
         }
-        .bubble-wrap { display: flex; flex-direction: column; }
-        .bubble-wrap-inner { display: flex; flex-direction: column; }
-        .message-time {
-          font-size: 10.5px;
+
+        .date-separator {
+          display: flex;
+          justify-content: center;
+          margin: 10px 0 4px;
+        }
+        .date-separator span {
+          background: var(--color-surface);
           color: var(--color-text-secondary);
-          opacity: 0.7;
-          margin-top: 2px;
-          align-self: flex-start;
+          font-size: 11.5px;
+          font-weight: 600;
+          padding: 4px 12px;
+          border-radius: var(--radius-pill);
+          box-shadow: var(--shadow-card);
         }
-        .message-time.is-mine {
-          align-self: flex-end;
-        }
+
+        .bubble-wrap { display: flex; flex-direction: column; }
         .bubble {
-          max-width: 75%;
-          padding: 10px 14px;
-          border-radius: var(--radius-md);
+          position: relative;
+          max-width: 78%;
+          padding: 7px 14px 7px 12px;
+          border-radius: 14px;
           background: var(--color-surface);
           box-shadow: var(--shadow-card);
           font-size: 14.5px;
           line-height: 1.4;
           align-self: flex-start;
           cursor: default;
+          border-bottom-left-radius: 3px;
+        }
+        .bubble::after { content: ""; display: table; clear: both; }
+        .bubble::before {
+          content: "";
+          position: absolute;
+          left: -6px;
+          bottom: 0;
+          width: 10px;
+          height: 13px;
+          background: var(--color-surface);
+          clip-path: polygon(100% 0, 100% 100%, 0% 100%);
         }
         .bubble.is-mine {
           align-self: flex-end;
           background: var(--color-primary);
           color: var(--color-text-onprimary);
           cursor: pointer;
+          border-bottom-left-radius: 14px;
+          border-bottom-right-radius: 3px;
+        }
+        .bubble.is-mine::before {
+          left: auto;
+          right: -6px;
+          background: var(--color-primary);
+          clip-path: polygon(0% 0, 100% 100%, 0% 100%);
+        }
+        .bubble__text { white-space: pre-wrap; word-break: break-word; }
+        .bubble__meta {
+          float: right;
+          margin-left: 8px;
+          margin-top: 3px;
+          display: inline-flex;
+          align-items: center;
+          gap: 3px;
+          font-size: 10.5px;
+          opacity: 0.65;
+          white-space: nowrap;
+          transform: translateY(2px);
         }
         .bubble--image {
           padding: 4px;
@@ -345,6 +438,19 @@ export function ChatScreen() {
           border-radius: calc(var(--radius-md) - 2px);
           max-height: 320px;
           object-fit: cover;
+        }
+        .bubble__photo-meta {
+          position: absolute;
+          right: 12px;
+          bottom: 12px;
+          display: inline-flex;
+          align-items: center;
+          gap: 3px;
+          font-size: 10.5px;
+          color: #fff;
+          background: rgba(0,0,0,0.45);
+          padding: 2px 6px;
+          border-radius: var(--radius-pill);
         }
         .bubble-image-delete {
           position: absolute;
