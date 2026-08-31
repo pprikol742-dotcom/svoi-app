@@ -41,9 +41,10 @@ interface SecretChatState {
   isThinking: boolean;
   quota: Quota | null;
   quotaLoading: boolean;
+  requestLog: number[];
   loadQuota: () => Promise<void>;
-  send: (text: string) => Promise<void>;
-  sendPhoto: (file: File) => Promise<void>;
+  send: (text: string, isAdmin?: boolean) => Promise<void>;
+  sendPhoto: (file: File, isAdmin?: boolean) => Promise<void>;
   clear: () => void;
 }
 
@@ -51,6 +52,11 @@ const SYSTEM_PROMPT: DeepSeekMessage = {
   role: "system",
   content: "Ты — полезный ассистент внутри секретного чата приложения. Отвечай кратко и по делу на русском языке.",
 };
+
+// Скрытый лимит: не более RATE_LIMIT_COUNT сообщений (текст + фото вместе)
+// за скользящее окно RATE_LIMIT_WINDOW_MS. Не применяется к админу.
+const RATE_LIMIT_COUNT = 5;
+const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 час
 
 function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -77,6 +83,10 @@ function deductQuota(set: (fn: (s: SecretChatState) => Partial<SecretChatState>)
   );
 }
 
+function formatRetryMinutes(ms: number) {
+  return Math.max(1, Math.ceil(ms / 60000));
+}
+
 export const useSecretChatStore = create<SecretChatState>()(
   persist(
     (set, get) => ({
@@ -84,6 +94,7 @@ export const useSecretChatStore = create<SecretChatState>()(
       isThinking: false,
       quota: null,
       quotaLoading: false,
+      requestLog: [],
 
       loadQuota: async () => {
         set({ quotaLoading: true });
@@ -102,12 +113,36 @@ export const useSecretChatStore = create<SecretChatState>()(
         set({ quotaLoading: false });
       },
 
-      send: async (text: string) => {
+      send: async (text: string, isAdmin = false) => {
         const trimmed = text.trim();
         if (!trimmed) return;
 
         const quota = get().quota;
         if (quota && quota.remaining <= 0) return;
+
+        if (!isAdmin) {
+          const now = Date.now();
+          const recent = get().requestLog.filter((t) => now - t < RATE_LIMIT_WINDOW_MS);
+          if (recent.length >= RATE_LIMIT_COUNT) {
+            const oldestInWindow = Math.min(...recent);
+            const waitMs = RATE_LIMIT_WINDOW_MS - (now - oldestInWindow);
+            const userMsg: SecretMessage = {
+              id: crypto.randomUUID(),
+              role: "user",
+              content: trimmed,
+              createdAt: now,
+            };
+            set((s) => ({
+              messages: [...s.messages, userMsg, {
+                id: crypto.randomUUID(),
+                role: "assistant",
+                content: `Вы уже отправили ${RATE_LIMIT_COUNT} сообщений за последний час. Пожалуйста, вернитесь через ${formatRetryMinutes(waitMs)} мин 🙏`,
+                createdAt: now,
+              }],
+            }));
+            return;
+          }
+        }
 
         const userMsg: SecretMessage = {
           id: crypto.randomUUID(),
@@ -134,6 +169,11 @@ export const useSecretChatStore = create<SecretChatState>()(
             isThinking: false,
           }));
 
+          if (!isAdmin) {
+            const now = Date.now();
+            set((s) => ({ requestLog: [...s.requestLog.filter((t) => now - t < RATE_LIMIT_WINDOW_MS), now] }));
+          }
+
           deductQuota(set, usage.totalTokens);
         } catch (err) {
           const detail = err instanceof Error ? err.message : String(err);
@@ -150,9 +190,27 @@ export const useSecretChatStore = create<SecretChatState>()(
         }
       },
 
-      sendPhoto: async (file: File) => {
+      sendPhoto: async (file: File, isAdmin = false) => {
         const quota = get().quota;
         if (quota && quota.remaining <= 0) return;
+
+        if (!isAdmin) {
+          const now = Date.now();
+          const recent = get().requestLog.filter((t) => now - t < RATE_LIMIT_WINDOW_MS);
+          if (recent.length >= RATE_LIMIT_COUNT) {
+            const oldestInWindow = Math.min(...recent);
+            const waitMs = RATE_LIMIT_WINDOW_MS - (now - oldestInWindow);
+            set((s) => ({
+              messages: [...s.messages, {
+                id: crypto.randomUUID(),
+                role: "assistant",
+                content: `Вы уже отправили ${RATE_LIMIT_COUNT} сообщений за последний час. Пожалуйста, вернитесь через ${formatRetryMinutes(waitMs)} мин 🙏`,
+                createdAt: now,
+              }],
+            }));
+            return;
+          }
+        }
 
         let dataUrl: string;
         try {
@@ -204,6 +262,11 @@ export const useSecretChatStore = create<SecretChatState>()(
             isThinking: false,
           }));
 
+          if (!isAdmin) {
+            const now = Date.now();
+            set((s) => ({ requestLog: [...s.requestLog.filter((t) => now - t < RATE_LIMIT_WINDOW_MS), now] }));
+          }
+
           deductQuota(set, usage.totalTokens);
         } catch (err) {
           const detail = err instanceof Error ? err.message : String(err);
@@ -222,6 +285,6 @@ export const useSecretChatStore = create<SecretChatState>()(
 
       clear: () => set({ messages: [] }),
     }),
-    { name: "secret-ai-chat", partialize: (s) => ({ messages: s.messages }) }
+    { name: "secret-ai-chat", partialize: (s) => ({ messages: s.messages, requestLog: s.requestLog }) }
   )
 );

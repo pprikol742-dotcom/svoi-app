@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 import { SpeechRecognition } from "@capacitor-community/speech-recognition";
 import { useSecretChatStore } from "@/store/useSecretChatStore";
+import { useAuthStore } from "@/store/useAuthStore";
 import svoyakAvatarUrl from "@/assets/svoyak-avatar.png";
 
 const SUGGESTIONS = [
@@ -43,6 +44,8 @@ function avitoSearchUrl(query: string) {
 export function SecretChatScreen() {
   const navigate = useNavigate();
   const { messages, isThinking, quota, loadQuota, send, sendPhoto, clear } = useSecretChatStore();
+  const { profile } = useAuthStore();
+  const isAdmin = !!profile?.is_admin;
   const [draft, setDraft] = useState("");
   const [showTopUp, setShowTopUp] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -71,7 +74,7 @@ export function SecretChatScreen() {
     const text = draft.trim();
     if (!text || exhausted) return;
     setDraft("");
-    await send(text);
+    await send(text, isAdmin);
   };
 
   const handleAttachPhoto = async () => {
@@ -91,7 +94,7 @@ export function SecretChatScreen() {
       const response = await fetch(photo.webPath);
       const blob = await response.blob();
       const file = new File([blob], `item-${Date.now()}.jpg`, { type: blob.type || "image/jpeg" });
-      await sendPhoto(file);
+      await sendPhoto(file, isAdmin);
     } catch (err) {
       console.error("Не удалось отправить фото", err);
     } finally {
@@ -167,7 +170,7 @@ export function SecretChatScreen() {
             <p>Спроси что угодно — я помогу</p>
             <div className="chips">
               {SUGGESTIONS.map((s) => (
-                <button key={s} className="chip" onClick={() => send(s)}>{s}</button>
+                <button key={s} className="chip" onClick={() => send(s, isAdmin)}>{s}</button>
               ))}
               <button className="chip chip--photo" onClick={handleAttachPhoto}>
                 📷 Определить товар по фото и оценить цену

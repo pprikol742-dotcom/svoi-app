@@ -56,6 +56,12 @@ function NotificationsPage({
     }
   };
 
+  const handleDelete = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    setItems((prev) => prev.filter((n) => n.id !== id));
+    await supabase.from("notifications").delete().eq("id", id);
+  };
+
   return (
     <div className="notif-page">
       <div className="notif-page__header">
@@ -78,6 +84,15 @@ function NotificationsPage({
               className={`notif-row${!n.read_at ? " is-unread" : ""}${n.listing_id ? " is-clickable" : ""}`}
               onClick={() => handleClick(n)}
             >
+              <button
+                className="notif-row__delete"
+                onClick={(e) => handleDelete(e, n.id)}
+                aria-label="Удалить"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18 6 6 18M6 6l12 12" />
+                </svg>
+              </button>
               <p className="notif-row__title">{n.title}</p>
               {n.body && <p className="notif-row__body">{n.body}</p>}
               <p className="notif-row__date">
@@ -125,13 +140,26 @@ function NotificationsPage({
           overflow-y: auto;
         }
         .notif-row {
+          position: relative;
           background: var(--color-surface);
           border-radius: var(--radius-md);
           padding: var(--space-3);
+          padding-right: 40px;
           box-shadow: var(--shadow-card);
         }
         .notif-row.is-unread { border: 1.5px solid var(--color-primary); }
         .notif-row.is-clickable { cursor: pointer; }
+        .notif-row__delete {
+          position: absolute;
+          top: 10px;
+          right: 10px;
+          width: 24px; height: 24px;
+          display: flex; align-items: center; justify-content: center;
+          color: var(--color-text-secondary);
+          border-radius: 50%;
+        }
+        .notif-row__delete:active { background: var(--color-bg); color: #e5484d; }
+        .notif-row__delete svg { width: 14px; height: 14px; }
         .notif-row__title { font-size: 14px; font-weight: 700; }
         .notif-row__body { font-size: 13px; color: var(--color-text-primary); margin-top: 4px; line-height: 1.4; }
         .notif-row__date { font-size: 11px; color: var(--color-text-secondary); margin-top: 6px; }
